@@ -1,6 +1,9 @@
-import pairJson from "@uniswap/v2-core/build/UniswapV2Pair.json";
-import factoryJson from "@uniswap/v2-core/build/UniswapV2Factory.json";
-import routerJson from "@uniswap/v2-periphery/build/UniswapV2Router02.json";
+import pairJson from "@sushiswap/core/artifacts/contracts/uniswapv2/UniswapV2Pair.sol/UniswapV2Pair.json";
+import factoryJson from "@sushiswap/core/artifacts/contracts/uniswapv2/UniswapV2Factory.sol/UniswapV2Factory.json";
+import routerJson from "@sushiswap/core/artifacts/contracts/uniswapv2/UniswapV2Router02.sol/UniswapV2Router02.json";
+
+// import masterChefJson from "@sushiswap/core/abi/MasterChef.json";
+// import sushiToken from "@sushiswap/core/abi/SushiToken.json";
 
 import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
