@@ -2,23 +2,26 @@ import pairJson from "@sushiswap/core/artifacts/contracts/uniswapv2/UniswapV2Pai
 import factoryJson from "@sushiswap/core/artifacts/contracts/uniswapv2/UniswapV2Factory.sol/UniswapV2Factory.json";
 import routerJson from "@sushiswap/core/artifacts/contracts/uniswapv2/UniswapV2Router02.sol/UniswapV2Router02.json";
 
-// import masterChefJson from "@sushiswap/core/abi/MasterChef.json";
-// import sushiToken from "@sushiswap/core/abi/SushiToken.json";
+import masterChefJson from "@sushiswap/core/artifacts/contracts/MasterChef.sol/MasterChef.json";
+import tokenJson from "@sushiswap/core/artifacts/contracts/SushiToken.sol/SushiToken.json";
+import wethJson from "@sushiswap/core/artifacts/contracts/mocks/WETH9Mock.sol/WETH9Mock.json";
 
 import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
-import { MockToken, SushiWallet, WETH9 } from "../typechain";
+import { SushiWallet } from "../typechain";
 import { Contract } from "ethers";
 
 describe("SushiWallet", function () {
   let deployer: SignerWithAddress,
     walletUser: SignerWithAddress,
-    SushiWallet: SushiWallet,
-    mockToken: MockToken,
-    weth: WETH9;
+    SushiWallet: SushiWallet;
 
-  let pair: Contract, sushiSwapFactory, sushiswapRouter;
+  let pair: Contract,
+    token: Contract,
+    weth: Contract,
+    sushiSwapFactory,
+    sushiswapRouter;
 
   const UNISWAP_INITIAL_TOKEN_RESERVE = ethers.utils.parseEther("100000");
   const UNISWAP_INITIAL_WETH_RESERVE = ethers.utils.parseEther("100");
@@ -44,11 +47,23 @@ describe("SushiWallet", function () {
       deployer
     );
 
+    //const MasterChefFactory = new ethers.ContractFactory(
+    //  masterChefJson.abi,
+    //  masterChefJson.bytecode,
+    //  deployer
+    //);
+
     // Deploy tokens
-    mockToken = await (
-      await ethers.getContractFactory("MockToken", deployer)
+    token = await new ethers.ContractFactory(
+      tokenJson.abi,
+      tokenJson.bytecode,
+      deployer
     ).deploy();
-    weth = await (await ethers.getContractFactory("WETH9", deployer)).deploy();
+    weth = await new ethers.ContractFactory(
+      wethJson.abi,
+      wethJson.bytecode,
+      deployer
+    ).deploy();
 
     // Deploy Uniswap Factory and Router
     sushiSwapFactory = await UniswapFactoryFactory.deploy(
@@ -60,12 +75,9 @@ describe("SushiWallet", function () {
     );
 
     // Create Uniswap pair against WETH and add liquidity
-    await mockToken.approve(
-      sushiswapRouter.address,
-      UNISWAP_INITIAL_TOKEN_RESERVE
-    );
+    await token.approve(sushiswapRouter.address, UNISWAP_INITIAL_TOKEN_RESERVE);
     await sushiswapRouter.addLiquidityETH(
-      mockToken.address,
+      token.address,
       UNISWAP_INITIAL_TOKEN_RESERVE, // amountTokenDesired
       0, // amountTokenMin
       0, // amountETHMin
@@ -75,13 +87,13 @@ describe("SushiWallet", function () {
     );
 
     pair = await UniswapPairFactory.attach(
-      await sushiSwapFactory.getPair(mockToken.address, weth.address)
+      await sushiSwapFactory.getPair(token.address, weth.address)
     );
     expect(await pair.balanceOf(deployer.address)).to.be.gt("0");
 
     // Send tokens to walletUser
-    mockToken.transfer(walletUser.address, USER_INITIAL_TOKEN_BALANCE);
-    expect(await mockToken.balanceOf(walletUser.address)).to.be.eq(
+    token.transfer(walletUser.address, USER_INITIAL_TOKEN_BALANCE);
+    expect(await token.balanceOf(walletUser.address)).to.be.eq(
       USER_INITIAL_TOKEN_BALANCE
     );
 
@@ -101,11 +113,9 @@ describe("SushiWallet", function () {
   it("Must have sufficient balance in contract", async function () {
     const amountDesired = ethers.utils.parseEther("1");
 
-    expect(await mockToken.balanceOf(SushiWallet.address)).to.be.lt(
-      amountDesired
-    );
+    expect(await token.balanceOf(SushiWallet.address)).to.be.lt(amountDesired);
 
-    await expect(SushiWallet.depositWithEth(mockToken.address, amountDesired))
-      .to.be.reverted;
+    await expect(SushiWallet.depositWithEth(token.address, amountDesired)).to.be
+      .reverted;
   });
 });
