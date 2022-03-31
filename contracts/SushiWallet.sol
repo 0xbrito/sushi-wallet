@@ -27,17 +27,14 @@ contract SushiWallet is Ownable {
         s_weth = _weth;
     }
 
-    /// @notice User must first send tokens to this contract's address in order to perform this function.
+    function depositFromEth(address _lp) external payable {}
+
+    /// @notice User must approve tokens to this contract before executing this function.
     function depositWithEth(address _token, uint256 _amountDesired)
         external
         payable
         returns (uint256 liquidity)
     {
-        require(
-            IERC20(_token).balanceOf(address(this)) >= _amountDesired,
-            "SushiWallet: Insufficient token amount in wallet"
-        );
-
         //save gas
         IUniswapV2Router01 router = s_router;
 
