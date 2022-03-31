@@ -1,8 +1,8 @@
 {
   "name": "hardhat-project",
   "scripts": {
-    "test": "yarn hardhat test",
-    "compile": "yarn hardhat compile"
+    "test": "npx hardhat test",
+    "compile": "npx hardhat compile"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
