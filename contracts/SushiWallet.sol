@@ -5,67 +5,109 @@ import "./Ownable.sol";
 
 import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
-
-//import "@sushiswap/core/contracts/MasterChef.sol";
+import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
+import "@uniswap/lib/contracts/libraries/TransferHelper.sol";
 
 import "./interfaces/IERC20.sol";
+import "./interfaces/IMasterChef.sol";
+
+import "hardhat/console.sol";
 
 contract SushiWallet is Ownable {
-    IUniswapV2Factory private immutable s_factory;
-    IUniswapV2Router02 private s_router;
+    address public factory;
+    IUniswapV2Router02 public router;
+    IMasterChef public chef;
 
-    address private immutable s_weth;
+    address public immutable weth;
+
+    event Stake(uint256 pid, uint256 liquidity);
 
     constructor(
         address _factory,
         address _router,
+        address _chef,
         address _weth
     ) public {
-        s_factory = IUniswapV2Factory(_factory);
-        s_router = IUniswapV2Router02(_router);
-        s_weth = _weth;
+        require(
+            _factory != address(0) &&
+                _router != address(0) &&
+                _chef != address(0) &&
+                _weth != address(0),
+            "SushiWallet: No zero address"
+        );
+        factory = _factory;
+        router = IUniswapV2Router02(_router);
+        chef = IMasterChef(_chef);
+        weth = _weth;
     }
 
-    function depositFromETH(address _pair)
+    /// @notice User must approve tokens to this contract before performing this function.
+    function stake(
+        address _tokenA,
+        address _tokenB,
+        uint256 _amountADesired,
+        uint256 _amountBDesired,
+        uint256 _amountAMin,
+        uint256 _amountBMin,
+        uint256 _pid
+    )
         external
-        view
         onlyOwner
-        returns (uint256 reserve0, uint256 reserve1)
+        returns (
+            uint256 amountA,
+            uint256 amountB,
+            uint256 liquidity
+        )
     {
-        // gas savings
-        IUniswapV2Router02 router = s_router;
-        (reserve0, reserve1, ) = IUniswapV2Pair(_pair).getReserves();
+        TransferHelper.safeTransferFrom(
+            _tokenA,
+            msg.sender,
+            address(this),
+            _amountADesired
+        );
+        TransferHelper.safeTransferFrom(
+            _tokenB,
+            msg.sender,
+            address(this),
+            _amountBDesired
+        );
 
-        //router.swapExactETHForTokens();
+        // gas savings
+        IUniswapV2Router02 _router = router;
+
+        TransferHelper.safeApprove(_tokenA, address(_router), _amountADesired);
+        TransferHelper.safeApprove(_tokenB, address(_router), _amountBDesired);
+
+        (amountA, amountB, liquidity) = _router.addLiquidity(
+            _tokenA,
+            _tokenB,
+            _amountADesired,
+            _amountBDesired,
+            _amountAMin,
+            _amountBMin,
+            address(this),
+            block.timestamp + 30 minutes
+        );
+        address lp = UniswapV2Library.pairFor(
+            address(factory),
+            _tokenA,
+            _tokenB
+        );
+        _stake(lp, liquidity, _pid);
     }
 
-    /// @notice User must approve tokens to this contract before executing this function.
-    // function depositWithEth(address _token, uint256 _amountDesired)
-    //     external
-    //     payable
-    //     returns (uint256 liquidity)
-    // {
-    //     //save gas
-    //     IUniswapV2Router02 router = s_router;
-    //
-    //     IERC20(_token).approve(address(router), _amountDesired);
-    //
-    //     (, , liquidity) = router.addLiquidityETH{value: msg.value}(
-    //         _token,
-    //         _amountDesired,
-    //         (_amountDesired * 97) / 100,
-    //         (msg.value * 97) / 100,
-    //         address(this),
-    //         block.timestamp + 30 minutes
-    //     );
-    //
-    //     address pair = UniswapV2Library.pairFor(
-    //         address(s_factory),
-    //         _token,
-    //         s_weth
-    //     );
-    // }
+    function _stake(
+        address _lp,
+        uint256 _amount,
+        uint256 _pid
+    ) private {
+        // gas savings
+        IMasterChef _chef = chef;
+
+        TransferHelper.safeApprove(_lp, address(_chef), _amount);
+        _chef.deposit(_pid, _amount);
+        emit Stake(_pid, _amount);
+    }
 
     // allow wallet to receive ether
     receive() external payable {}

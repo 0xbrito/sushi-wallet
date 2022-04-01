@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+pragma experimental ABIEncoderV2;
 import "./IERC20.sol";
 
 interface IMasterChef {
