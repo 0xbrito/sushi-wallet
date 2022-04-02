@@ -142,7 +142,7 @@ contract SushiWallet is Ownable {
         if (sushiBal > 0) sushi.transfer(msg.sender, sushiBal);
     }
 
-    /// @dev Low-level function to interact with MasterChef to deposit lp tokens.
+    /// @dev Low-level function to interact directly with MasterChef to deposit and farm lp tokens.
     function _stake(
         address _lp,
         uint256 _amount,
