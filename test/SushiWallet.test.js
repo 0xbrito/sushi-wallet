@@ -1,17 +1,16 @@
-import pairJson from "@uniswap/v2-core/build/UniswapV2Pair.json";
-import factoryJson from "@uniswap/v2-core/build/UniswapV2Factory.json";
-import routerJson from "@uniswap/v2-periphery/build/UniswapV2Router02.json";
+const pairJson = require("@uniswap/v2-core/build/UniswapV2Pair.json");
+const factoryJson = require("@uniswap/v2-core/build/UniswapV2Factory.json");
+const routerJson = require("@uniswap/v2-periphery/build/UniswapV2Router02.json");
 
-import masterChefJson from "@sushiswap/core/artifacts/contracts/MasterChef.sol/MasterChef.json";
-import sushiTokenJson from "@sushiswap/core/artifacts/contracts/SushiToken.sol/SushiToken.json";
-import wethJson from "@uniswap/v2-periphery/build/WETH9.json";
+const masterChefJson = require("@sushiswap/core/artifacts/contracts/MasterChef.sol/MasterChef.json");
+const sushiTokenJson = require("@sushiswap/core/artifacts/contracts/SushiToken.sol/SushiToken.json");
+const wethJson = require("@uniswap/v2-periphery/build/WETH9.json");
 
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { ethers } from "hardhat";
-import { expect } from "chai";
+const { ethers } = require("hardhat");
+const { expect } = require("chai");
 
 describe("[SushiWallet]", function () {
-  let deployer: SignerWithAddress, walletUser: SignerWithAddress;
+  let deployer, walletUser;
 
   const UNISWAP_INITIAL_TOKEN_RESERVE = ethers.utils.parseEther("10000");
   const UNISWAP_INITIAL_WETH_RESERVE = ethers.utils.parseEther("100");
@@ -113,7 +112,6 @@ describe("[SushiWallet]", function () {
   describe("[Deployment]", async function () {
     it("must set Factory, Router, MasterChef, Weth and Owner addresses", async function () {
       // Deploy wallet
-      const factory = this.factory.address;
       const router = this.router.address;
       const chef = this.chef.address;
       const weth = this.weth.address;
@@ -155,7 +153,7 @@ describe("[SushiWallet]", function () {
     });
 
     // @ts-ignore:
-    async function deposit(overrides?) {
+    async function deposit(overrides) {
       const defaultParams = {
         // @ts-ignore:
         tokenA: this.sushiToken.address,

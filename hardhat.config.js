@@ -1,14 +1,9 @@
-import * as dotenv from "dotenv";
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomiclabs/hardhat-waffle";
-import "@typechain/hardhat";
-
-dotenv.config();
+require("@nomiclabs/hardhat-waffle");
 
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
 
-const config: HardhatUserConfig = {
+module.exports = {
   networks: {
     hardhat: {
       allowUnlimitedContractSize: true,
@@ -24,5 +19,3 @@ const config: HardhatUserConfig = {
     ],
   },
 };
-
-export default config;
