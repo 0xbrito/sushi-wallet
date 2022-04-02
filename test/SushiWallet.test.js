@@ -216,12 +216,6 @@ describe("[SushiWallet]", function () {
         pendingSushiBefore
       );
     });
-    it("refunds remaining tokens", async function () {
-      expect(await this.sushiToken.balanceOf(this.wallet.address)).to.be.eq(
-        "0"
-      );
-      expect(await this.weth.balanceOf(this.wallet.address)).to.be.eq("0");
-    });
     it("retrieve staked amount", async function () {
       expect(await this.wallet.staked(0)).to.not.be.undefined;
     });

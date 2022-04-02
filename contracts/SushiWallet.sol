@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "./Ownable.sol";
 
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 
 import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
@@ -51,6 +52,7 @@ contract SushiWallet is Ownable {
     }
 
     /// @notice This is the function which fulfill main goal of this contract.
+    /// @notice it may not work as expected with tokens with transaction fees.
     /// @dev User must give allowance to this contract before calling this function.
     /// @param _tokenA      one of the pais's tokens
     /// @param _tokenB      one of the pair's tokens
@@ -78,11 +80,13 @@ contract SushiWallet is Ownable {
             uint256 liquidity
         )
     {
+        //Ensure that user has enough balance
         require(
             IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired &&
                 IERC20(_tokenB).balanceOf(msg.sender) >= _amountBDesired,
             "SushiWallet: Insufficient token balance"
         );
+        //Ensure that user has approved tokens
         require(
             IERC20(_tokenA).allowance(msg.sender, address(this)) >=
                 _amountADesired &&
@@ -91,16 +95,17 @@ contract SushiWallet is Ownable {
             "SushiWallet: Insufficient allowance"
         );
 
-        IERC20(_tokenA).transferFrom(
-            msg.sender,
-            address(this),
-            _amountADesired
+        (amountA, amountB) = _getOptimalAmounts(
+            _tokenA,
+            _tokenB,
+            _amountADesired,
+            _amountBDesired,
+            _amountAMin,
+            _amountBMin
         );
-        IERC20(_tokenB).transferFrom(
-            msg.sender,
-            address(this),
-            _amountBDesired
-        );
+
+        IERC20(_tokenA).transferFrom(msg.sender, address(this), amountA);
+        IERC20(_tokenB).transferFrom(msg.sender, address(this), amountB);
 
         // Save gas
         IUniswapV2Router02 _router = router;
@@ -108,7 +113,7 @@ contract SushiWallet is Ownable {
         IERC20(_tokenA).approve(address(_router), _amountADesired);
         IERC20(_tokenB).approve(address(_router), _amountBDesired);
 
-        (amountA, amountB, liquidity) = _router.addLiquidity(
+        (, , liquidity) = _router.addLiquidity(
             _tokenA,
             _tokenB,
             _amountADesired,
@@ -119,13 +124,6 @@ contract SushiWallet is Ownable {
             block.timestamp + 30 minutes
         );
         _stake(_lp, liquidity, _pid);
-
-        // Transfer remaining tokens to user
-        uint256 remainingA = _amountADesired - amountA;
-        uint256 remainingB = _amountBDesired - amountB;
-
-        if (remainingA > 0) IERC20(_tokenA).transfer(msg.sender, remainingA);
-        if (remainingB > 0) IERC20(_tokenB).transfer(msg.sender, remainingB);
     }
 
     /// @dev Withdraw tokens from MasterChef, pass 0 as {_amount} just to harvest SUSHI.
@@ -162,5 +160,45 @@ contract SushiWallet is Ownable {
         IERC20(_lp).approve(address(_chef), _amount);
         _chef.deposit(_pid, _amount);
         emit Stake(_pid, _amount);
+    }
+
+    /// @dev piece of code extracted from UniswapV2Router02.sol contract to calculate optimal amounts before accessing user funds.
+    function _getOptimalAmounts(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 amountAMin,
+        uint256 amountBMin
+    ) private view returns (uint256 amountA, uint256 amountB) {
+        (uint256 reserveA, uint256 reserveB) = UniswapV2Library.getReserves(
+            router.factory(),
+            tokenA,
+            tokenB
+        );
+        uint256 amountBOptimal = UniswapV2Library.quote(
+            amountADesired,
+            reserveA,
+            reserveB
+        );
+        if (amountBOptimal <= amountBDesired) {
+            require(
+                amountBOptimal >= amountBMin,
+                "UniswapV2Router: INSUFFICIENT_B_AMOUNT"
+            );
+            (amountA, amountB) = (amountADesired, amountBOptimal);
+        } else {
+            uint256 amountAOptimal = UniswapV2Library.quote(
+                amountBDesired,
+                reserveB,
+                reserveA
+            );
+            assert(amountAOptimal <= amountADesired);
+            require(
+                amountAOptimal >= amountAMin,
+                "UniswapV2Router: INSUFFICIENT_A_AMOUNT"
+            );
+            (amountA, amountB) = (amountAOptimal, amountBDesired);
+        }
     }
 }
