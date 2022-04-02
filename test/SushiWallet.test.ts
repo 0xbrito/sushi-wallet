@@ -118,15 +118,9 @@ describe("[SushiWallet]", function () {
       const chef = this.chef.address;
       const weth = this.weth.address;
 
-      const wallet = await this.SushiWallet.connect(walletUser).deploy(
-        factory,
-        router,
-        chef,
-        weth
-      );
+      const wallet = await this.SushiWallet.deploy(router, chef, weth);
       await wallet.deployed();
 
-      expect(await wallet.factory()).to.be.eq(factory);
       expect(await wallet.router()).to.be.eq(router);
       expect(await wallet.chef()).to.be.eq(chef);
       expect(await wallet.weth()).to.be.eq(weth);
@@ -136,8 +130,7 @@ describe("[SushiWallet]", function () {
     });
     it("reverts when zero address is given", async function () {
       await expect(
-        this.SushiWallet.connect(walletUser).deploy(
-          this.factory.address,
+        this.SushiWallet.deploy(
           this.router.address,
           this.chef.address,
           ethers.constants.AddressZero
@@ -149,8 +142,7 @@ describe("[SushiWallet]", function () {
   describe("[Deposit]", async function () {
     beforeEach(async function () {
       // Deploy wallet
-      this.wallet = await this.SushiWallet.connect(walletUser).deploy(
-        this.factory.address,
+      this.wallet = await this.SushiWallet.deploy(
         this.router.address,
         this.chef.address,
         this.weth.address
@@ -173,6 +165,8 @@ describe("[SushiWallet]", function () {
         amountBDesired: USER_LIQUIDITY_WETH,
         amountAMin: USER_INITIAL_TOKEN_BALANCE.div(10).mul(95).div(100),
         amountBMin: USER_LIQUIDITY_WETH.mul(95).div(100),
+        // @ts-ignore
+        lp: this.pair.address,
         pid: 0,
         ...overrides,
       };
@@ -185,6 +179,7 @@ describe("[SushiWallet]", function () {
         defaultParams.amountBDesired,
         defaultParams.amountAMin,
         defaultParams.amountBMin,
+        defaultParams.lp,
         defaultParams.pid
       );
       return tx;
@@ -242,7 +237,7 @@ describe("[SushiWallet]", function () {
             amountADesired: USER_INITIAL_TOKEN_BALANCE,
           })
         )
-      ).to.be.revertedWith("SushiWallet: Insufficient tokenA in balance");
+      ).to.be.revertedWith("Insufficient token balance");
     });
     it("reverts if user hasn't approved enough tokens", async function () {
       await expect(

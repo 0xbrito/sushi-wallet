@@ -4,7 +4,6 @@ pragma experimental ABIEncoderV2;
 
 import "./Ownable.sol";
 
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 import "./interfaces/IERC20.sol";
@@ -25,7 +24,6 @@ import "./interfaces/IMasterChef.sol";
 contract SushiWallet is Ownable {
     IUniswapV2Router02 public router;
     IMasterChef public chef;
-    address public factory;
     address public immutable weth;
 
     // pool id => staked lp amount
@@ -34,30 +32,34 @@ contract SushiWallet is Ownable {
     event Stake(uint256 pid, uint256 liquidity);
 
     constructor(
-        address _factory,
         address _router,
         address _chef,
         address _weth
     ) public {
         require(
-            _factory != address(0) &&
-                _router != address(0) &&
-                _chef != address(0) &&
-                _weth != address(0),
+            _router != address(0) && _chef != address(0) && _weth != address(0),
             "SushiWallet: No zero address"
         );
-        factory = _factory;
         router = IUniswapV2Router02(_router);
         chef = IMasterChef(_chef);
         weth = _weth;
     }
 
-    // Return pending sushi to this contract.
-    function pending(uint256 _pid) public view returns (uint256 pending) {
-        pending = chef.pendingSushi(_pid, address(this));
+    /// @dev Return pending SUSHI to this contract.
+    function pending(uint256 _pid) public view returns (uint256 pendingSushi) {
+        pendingSushi = chef.pendingSushi(_pid, address(this));
     }
 
-    /// @notice User must give allowance to this contract before calling this function.
+    /// @notice This is the function which fulfill main goal of this contract.
+    /// @dev User must give allowance to this contract before calling this function.
+    /// @param _tokenA      one of the pais's tokens
+    /// @param _tokenB      one of the pair's tokens
+    /// @param _amountADesired      desired amount of {_tokenA} to provide as liquidity
+    /// @param _amountBDesired      desired amount of {_tokenB} to provide as liquidity
+    /// @param _amountAMin      minimal amount of {_tokenA} to provide as liquidity
+    /// @param _amountBMin      minimal amount of {_tokenB} to provide as liquidity
+    /// @param _lp      LP token address
+    /// @param _pid     id of the pool to deposit LP in the MasterChef
     function deposit(
         address _tokenA,
         address _tokenB,
@@ -65,6 +67,7 @@ contract SushiWallet is Ownable {
         uint256 _amountBDesired,
         uint256 _amountAMin,
         uint256 _amountBMin,
+        address _lp,
         uint256 _pid
     )
         external
@@ -76,14 +79,10 @@ contract SushiWallet is Ownable {
         )
     {
         require(
-            IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired,
-            "SushiWallet: Insufficient tokenA in balance"
+            IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired &&
+                IERC20(_tokenB).balanceOf(msg.sender) >= _amountBDesired,
+            "SushiWallet: Insufficient token balance"
         );
-        require(
-            IERC20(_tokenB).balanceOf(msg.sender) >= _amountBDesired,
-            "SushiWallet: Insufficient tokenB in balance"
-        );
-
         require(
             IERC20(_tokenA).allowance(msg.sender, address(this)) >=
                 _amountADesired &&
@@ -119,12 +118,7 @@ contract SushiWallet is Ownable {
             address(this),
             block.timestamp + 30 minutes
         );
-        address lp = UniswapV2Library.pairFor(
-            address(factory),
-            _tokenA,
-            _tokenB
-        );
-        _stake(lp, liquidity, _pid);
+        _stake(_lp, liquidity, _pid);
 
         // Transfer remaining tokens to user
         uint256 remainingA = _amountADesired - amountA;
@@ -148,6 +142,7 @@ contract SushiWallet is Ownable {
         if (sushiBal > 0) sushi.transfer(msg.sender, sushiBal);
     }
 
+    /// @dev Low-level function to interact with MasterChef to deposit lp tokens.
     function _stake(
         address _lp,
         uint256 _amount,
