@@ -9,6 +9,7 @@ import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 
 import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
+import "hardhat/console.sol";
 
 /**
  * @dev Staking wallet contract. A layer built on top of MasterChef and Router contracts to join Sushiswap's liquidity mining program.
@@ -46,7 +47,7 @@ contract SushiWallet is Ownable {
         weth = _weth;
     }
 
-    /// @dev Return pending SUSHI to this contract.
+    /// @dev Return pending SUSHI of this contract.
     function pending(uint256 _pid) public view returns (uint256 pendingSushi) {
         pendingSushi = chef.pendingSushi(_pid, address(this));
     }
@@ -110,16 +111,19 @@ contract SushiWallet is Ownable {
         // Save gas
         IUniswapV2Router02 _router = router;
 
-        IERC20(_tokenA).approve(address(_router), _amountADesired);
-        IERC20(_tokenB).approve(address(_router), _amountBDesired);
+        IERC20(_tokenA).approve(address(_router), amountA);
+        IERC20(_tokenB).approve(address(_router), amountB);
 
+
+        console.log("amountA: ", amountA / 1e18);
+        console.log("amountB: ", amountB / 1e18);
         (, , liquidity) = _router.addLiquidity(
             _tokenA,
             _tokenB,
-            _amountADesired,
-            _amountBDesired,
-            _amountAMin,
-            _amountBMin,
+            amountA,
+            amountB,
+            0,
+            0,
             address(this),
             block.timestamp + 30 minutes
         );
@@ -184,7 +188,7 @@ contract SushiWallet is Ownable {
         if (amountBOptimal <= amountBDesired) {
             require(
                 amountBOptimal >= amountBMin,
-                "UniswapV2Router: INSUFFICIENT_B_AMOUNT"
+                "SushiWallet: INSUFFICIENT_B_AMOUNT"
             );
             (amountA, amountB) = (amountADesired, amountBOptimal);
         } else {
@@ -196,7 +200,7 @@ contract SushiWallet is Ownable {
             assert(amountAOptimal <= amountADesired);
             require(
                 amountAOptimal >= amountAMin,
-                "UniswapV2Router: INSUFFICIENT_A_AMOUNT"
+                "SushiWallet: INSUFFICIENT_A_AMOUNT"
             );
             (amountA, amountB) = (amountAOptimal, amountBDesired);
         }
