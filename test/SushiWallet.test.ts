@@ -223,6 +223,12 @@ describe("[SushiWallet]", function () {
         pendingSushiBefore
       );
     });
+    it("refunds remaining tokens", async function () {
+      expect(await this.sushiToken.balanceOf(this.wallet.address)).to.be.eq(
+        "0"
+      );
+      expect(await this.weth.balanceOf(this.wallet.address)).to.be.eq("0");
+    });
     it("reverts if user has no enough balance", async function () {
       await expect(
         walletUser.sendTransaction(
@@ -255,7 +261,6 @@ describe("[SushiWallet]", function () {
         )
       ).to.be.revertedWith("SushiWallet: Invalid pid");
     });
-    it("refunds any remaining tokens", async function () {});
   });
 
   describe("[WithDraw]", async function () {

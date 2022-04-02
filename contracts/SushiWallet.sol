@@ -117,7 +117,7 @@ contract SushiWallet is Ownable {
         if (remainingB > 0) IERC20(_tokenB).transfer(msg.sender, remainingB);
     }
 
-    function withdraw() external {}
+    function withdraw() external onlyOwner {}
 
     function harvest() external {}
 
