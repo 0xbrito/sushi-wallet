@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: MIT
-pragma solidity >=0.6.6;
+pragma solidity >=0.6.6 <=0.9.0;
+pragma experimental ABIEncoderV2;
 
 import "./Ownable.sol";
 
 import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 import "@uniswap/lib/contracts/libraries/TransferHelper.sol";
 
 import "./interfaces/IERC20.sol";
@@ -42,7 +42,7 @@ contract SushiWallet is Ownable {
     }
 
     /// @notice User must approve tokens to this contract before performing this function.
-    function stake(
+    function deposit(
         address _tokenA,
         address _tokenB,
         uint256 _amountADesired,
@@ -59,6 +59,23 @@ contract SushiWallet is Ownable {
             uint256 liquidity
         )
     {
+        require(
+            IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired,
+            "SushiWallet: Insufficient tokenA in balance"
+        );
+        require(
+            IERC20(_tokenB).balanceOf(msg.sender) >= _amountBDesired,
+            "SushiWallet: Insufficient tokenB in balance"
+        );
+
+        require(
+            IERC20(_tokenA).allowance(msg.sender, address(this)) >=
+                _amountADesired &&
+                IERC20(_tokenB).allowance(msg.sender, address(this)) >=
+                _amountBDesired,
+            "SushiWallet: Insufficient allowance"
+        );
+
         TransferHelper.safeTransferFrom(
             _tokenA,
             msg.sender,
@@ -94,7 +111,20 @@ contract SushiWallet is Ownable {
             _tokenB
         );
         _stake(lp, liquidity, _pid);
+
+        // transfer remaining tokens to user
+        uint256 remainingA = _amountADesired - amountA;
+        uint256 remainingB = _amountBDesired - amountB;
+
+        if (remainingA > 0)
+            TransferHelper.safeTransfer(_tokenA, msg.sender, remainingA);
+        if (remainingB > 0)
+            TransferHelper.safeTransfer(_tokenB, msg.sender, remainingB);
     }
+
+    function withdraw() external {}
+
+    function harvest() external {}
 
     function _stake(
         address _lp,
@@ -102,7 +132,14 @@ contract SushiWallet is Ownable {
         uint256 _pid
     ) private {
         // gas savings
+
         IMasterChef _chef = chef;
+
+        require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
+        require(
+            address(_chef.poolInfo(_pid).lpToken) == _lp,
+            "SushiWallet: Invalid LP token"
+        );
 
         TransferHelper.safeApprove(_lp, address(_chef), _amount);
         _chef.deposit(_pid, _amount);

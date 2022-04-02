@@ -11,17 +11,16 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 
 describe("[SushiWallet]", function () {
-  let deployer: SignerWithAddress,
-    walletUser: SignerWithAddress,
-    bob: SignerWithAddress;
+  let deployer: SignerWithAddress, walletUser: SignerWithAddress;
 
-  const UNISWAP_INITIAL_TOKEN_RESERVE = ethers.utils.parseEther("100000");
+  const UNISWAP_INITIAL_TOKEN_RESERVE = ethers.utils.parseEther("10000");
   const UNISWAP_INITIAL_WETH_RESERVE = ethers.utils.parseEther("100");
-  const USER_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther("1000");
-  const SUSHI_PER_BLOCK = ethers.utils.parseEther("1");
+
+  const USER_LIQUIDITY_WETH = ethers.utils.parseEther("1");
+  const USER_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther("100");
 
   before(async function () {
-    [deployer, walletUser, bob] = await ethers.getSigners();
+    [deployer, walletUser] = await ethers.getSigners();
 
     this.SushiFactory = new ethers.ContractFactory(
       factoryJson.abi,
@@ -100,7 +99,7 @@ describe("[SushiWallet]", function () {
     this.chef = await this.MasterChef.deploy(
       this.sushiToken.address,
       deployer.address,
-      SUSHI_PER_BLOCK,
+      ethers.utils.parseEther("10"),
       0,
       1000
     );
@@ -147,35 +146,23 @@ describe("[SushiWallet]", function () {
     });
   });
 
-  beforeEach(async function () {
-    const wallet = await this.SushiWallet.connect(walletUser).deploy(
-      this.factory.address,
-      this.router.address,
-      this.chef.address,
-      this.weth.address
-    );
-    await wallet.deployed();
-  });
-
-  beforeEach(async function () {
-    // Deploy wallet
-    this.wallet = await this.SushiWallet.connect(walletUser).deploy(
-      this.factory.address,
-      this.router.address,
-      this.chef.address,
-      this.weth.address
-    );
-    await this.wallet.deployed();
-  });
-
   describe("[Deposit]", async function () {
-    it("should Add liquidity and stake LPs in a single transaction", async function () {
-      const USER_LIQUIDITY_WETH = ethers.utils.parseEther("1");
+    beforeEach(async function () {
+      // Deploy wallet
+      this.wallet = await this.SushiWallet.connect(walletUser).deploy(
+        this.factory.address,
+        this.router.address,
+        this.chef.address,
+        this.weth.address
+      );
+      await this.wallet.deployed();
 
       await this.weth
         .connect(walletUser)
         .deposit({ value: USER_LIQUIDITY_WETH });
+    });
 
+    it("should Add liquidity and stake LPs in a single transaction", async function () {
       await this.weth
         .connect(walletUser)
         .approve(this.wallet.address, USER_LIQUIDITY_WETH);
@@ -183,23 +170,63 @@ describe("[SushiWallet]", function () {
         .connect(walletUser)
         .approve(this.wallet.address, USER_INITIAL_TOKEN_BALANCE);
 
-      await this.wallet.stake(
-        this.weth.address,
+      const pendingSushiBefore = await this.chef.pendingSushi(
+        0,
+        this.wallet.address
+      );
+      const sushiBalBefore = await this.sushiToken.balanceOf(
+        walletUser.address
+      );
+      const wethBalBefore = await this.weth.balanceOf(walletUser.address);
+
+      await this.wallet.deposit(
         this.sushiToken.address,
-        USER_LIQUIDITY_WETH,
+        this.weth.address,
         USER_INITIAL_TOKEN_BALANCE,
-        USER_LIQUIDITY_WETH.mul(95).div(100),
+        USER_LIQUIDITY_WETH,
         USER_INITIAL_TOKEN_BALANCE.mul(95).div(100),
+        USER_LIQUIDITY_WETH.mul(95).div(100),
+
         0
       );
-      expect(await this.pair.balanceOf(this.wallet.address)).to.be.eq("0");
+      expect(await this.sushiToken.balanceOf(walletUser.address)).to.be.eq(
+        sushiBalBefore.sub(USER_INITIAL_TOKEN_BALANCE)
+      );
+      expect(await this.weth.balanceOf(walletUser.address)).to.be.eq(
+        wethBalBefore.sub(USER_LIQUIDITY_WETH)
+      );
+
+      ethers.provider.send("evm_mine", []);
+      expect(await this.chef.pendingSushi(0, this.wallet.address)).to.be.gt(
+        pendingSushiBefore
+      );
     });
-    it("should refund remaining tokens");
+    it("reverts if user has no enough balance", async function () {
+      await expect(
+        this.wallet.deposit(
+          this.sushiToken.address,
+          this.weth.address,
+          USER_INITIAL_TOKEN_BALANCE,
+          USER_LIQUIDITY_WETH,
+          USER_INITIAL_TOKEN_BALANCE.mul(95).div(100),
+          USER_LIQUIDITY_WETH.mul(95).div(100),
+          0
+        )
+      ).to.be.revertedWith("SushiWallet: Insufficient tokenA in balance");
+    });
+    it("reverts if user hasn't approved enough tokens", async function () {
+      console.log(
+        "inside other test",
+        await this.sushiToken.balanceOf(walletUser.address)
+      );
+    });
+
+    it("reverts if given a non-existent pool", async function () {});
   });
   describe("[WithDraw]", async function () {
-    it("must be able to withdraw ");
+    it("should withdraw and break LPs");
+    it("should withdraw and give ");
+    it("should emergency withdraw");
   });
-  describe("[Access]", async function () {
-    it("Only owner can deposit", async function () {});
-  });
+  describe("[Harvest]", async function () {});
 });

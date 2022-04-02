@@ -18,7 +18,9 @@ interface IMasterChef {
     function poolInfo(uint256 pid)
         external
         view
-        returns (IMasterChef.PoolInfo memory);
+        returns (PoolInfo memory);
+
+    function poolLength() external view returns (uint256);
 
     function totalAllocPoint() external view returns (uint256);
 
