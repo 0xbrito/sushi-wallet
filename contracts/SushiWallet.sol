@@ -6,7 +6,6 @@ import "./Ownable.sol";
 
 import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "@uniswap/lib/contracts/libraries/TransferHelper.sol";
 
 import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
@@ -76,14 +75,12 @@ contract SushiWallet is Ownable {
             "SushiWallet: Insufficient allowance"
         );
 
-        TransferHelper.safeTransferFrom(
-            _tokenA,
+        IERC20(_tokenA).transferFrom(
             msg.sender,
             address(this),
             _amountADesired
         );
-        TransferHelper.safeTransferFrom(
-            _tokenB,
+        IERC20(_tokenB).transferFrom(
             msg.sender,
             address(this),
             _amountBDesired
@@ -92,8 +89,8 @@ contract SushiWallet is Ownable {
         // gas savings
         IUniswapV2Router02 _router = router;
 
-        TransferHelper.safeApprove(_tokenA, address(_router), _amountADesired);
-        TransferHelper.safeApprove(_tokenB, address(_router), _amountBDesired);
+        IERC20(_tokenA).approve(address(_router), _amountADesired);
+        IERC20(_tokenB).approve(address(_router), _amountBDesired);
 
         (amountA, amountB, liquidity) = _router.addLiquidity(
             _tokenA,
@@ -116,10 +113,8 @@ contract SushiWallet is Ownable {
         uint256 remainingA = _amountADesired - amountA;
         uint256 remainingB = _amountBDesired - amountB;
 
-        if (remainingA > 0)
-            TransferHelper.safeTransfer(_tokenA, msg.sender, remainingA);
-        if (remainingB > 0)
-            TransferHelper.safeTransfer(_tokenB, msg.sender, remainingB);
+        if (remainingA > 0) IERC20(_tokenA).transfer(msg.sender, remainingA);
+        if (remainingB > 0) IERC20(_tokenB).transfer(msg.sender, remainingB);
     }
 
     function withdraw() external {}
@@ -141,7 +136,7 @@ contract SushiWallet is Ownable {
             "SushiWallet: Invalid LP token"
         );
 
-        TransferHelper.safeApprove(_lp, address(_chef), _amount);
+        IERC20(_lp).approve(address(_chef), _amount);
         _chef.deposit(_pid, _amount);
         emit Stake(_pid, _amount);
     }

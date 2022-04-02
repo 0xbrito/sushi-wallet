@@ -17,7 +17,7 @@ describe("[SushiWallet]", function () {
   const UNISWAP_INITIAL_WETH_RESERVE = ethers.utils.parseEther("100");
 
   const USER_LIQUIDITY_WETH = ethers.utils.parseEther("1");
-  const USER_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther("100");
+  const USER_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther("1000");
 
   before(async function () {
     [deployer, walletUser] = await ethers.getSigners();
@@ -162,13 +162,42 @@ describe("[SushiWallet]", function () {
         .deposit({ value: USER_LIQUIDITY_WETH });
     });
 
+    // @ts-ignore:
+    async function deposit(overrides?) {
+      const defaultParams = {
+        // @ts-ignore:
+        tokenA: this.sushiToken.address,
+        // @ts-ignore:
+        tokenB: this.weth.address,
+        amountADesired: USER_INITIAL_TOKEN_BALANCE.div(10),
+        amountBDesired: USER_LIQUIDITY_WETH,
+        amountAMin: USER_INITIAL_TOKEN_BALANCE.div(10).mul(95).div(100),
+        amountBMin: USER_LIQUIDITY_WETH.mul(95).div(100),
+        pid: 0,
+        ...overrides,
+      };
+
+      // @ts-ignore:
+      const tx = await this.wallet.populateTransaction.deposit(
+        defaultParams.tokenA,
+        defaultParams.tokenB,
+        defaultParams.amountADesired,
+        defaultParams.amountBDesired,
+        defaultParams.amountAMin,
+        defaultParams.amountBMin,
+        defaultParams.pid
+      );
+      return tx;
+    }
+
     it("should Add liquidity and stake LPs in a single transaction", async function () {
+      const sushiToDeposit = USER_INITIAL_TOKEN_BALANCE.div(10);
       await this.weth
         .connect(walletUser)
         .approve(this.wallet.address, USER_LIQUIDITY_WETH);
       await this.sushiToken
         .connect(walletUser)
-        .approve(this.wallet.address, USER_INITIAL_TOKEN_BALANCE);
+        .approve(this.wallet.address, sushiToDeposit);
 
       const pendingSushiBefore = await this.chef.pendingSushi(
         0,
@@ -179,18 +208,11 @@ describe("[SushiWallet]", function () {
       );
       const wethBalBefore = await this.weth.balanceOf(walletUser.address);
 
-      await this.wallet.deposit(
-        this.sushiToken.address,
-        this.weth.address,
-        USER_INITIAL_TOKEN_BALANCE,
-        USER_LIQUIDITY_WETH,
-        USER_INITIAL_TOKEN_BALANCE.mul(95).div(100),
-        USER_LIQUIDITY_WETH.mul(95).div(100),
+      const tx = await deposit.call(this, {});
+      await walletUser.sendTransaction(tx);
 
-        0
-      );
       expect(await this.sushiToken.balanceOf(walletUser.address)).to.be.eq(
-        sushiBalBefore.sub(USER_INITIAL_TOKEN_BALANCE)
+        sushiBalBefore.sub(sushiToDeposit)
       );
       expect(await this.weth.balanceOf(walletUser.address)).to.be.eq(
         wethBalBefore.sub(USER_LIQUIDITY_WETH)
@@ -202,27 +224,38 @@ describe("[SushiWallet]", function () {
       );
     });
     it("reverts if user has no enough balance", async function () {
-      await expect(
-        this.wallet.deposit(
-          this.sushiToken.address,
-          this.weth.address,
-          USER_INITIAL_TOKEN_BALANCE,
-          USER_LIQUIDITY_WETH,
-          USER_INITIAL_TOKEN_BALANCE.mul(95).div(100),
-          USER_LIQUIDITY_WETH.mul(95).div(100),
-          0
-        )
-      ).to.be.revertedWith("SushiWallet: Insufficient tokenA in balance");
+      const tx = await deposit.call(this, {
+        amountADesired: USER_INITIAL_TOKEN_BALANCE.mul(10),
+      });
+      await expect(walletUser.sendTransaction(tx)).to.be.revertedWith(
+        "SushiWallet: Insufficient tokenA in balance"
+      );
     });
     it("reverts if user hasn't approved enough tokens", async function () {
-      console.log(
-        "inside other test",
-        await this.sushiToken.balanceOf(walletUser.address)
+      const tx = await deposit.call(this);
+      await expect(walletUser.sendTransaction(tx)).to.be.revertedWith(
+        "SushiWallet: Insufficient allowance"
       );
     });
 
-    it("reverts if given a non-existent pool", async function () {});
+    it("reverts if given a non-existent pool", async function () {
+      await this.sushiToken
+        .connect(walletUser)
+        .approve(this.wallet.address, USER_INITIAL_TOKEN_BALANCE);
+
+      await this.weth
+        .connect(walletUser)
+        .approve(this.wallet.address, USER_LIQUIDITY_WETH);
+
+      const tx = await deposit.call(this, {
+        pid: 10,
+      });
+      await expect(walletUser.sendTransaction(tx)).to.be.revertedWith(
+        "SushiWallet: Invalid pid"
+      );
+    });
   });
+
   describe("[WithDraw]", async function () {
     it("should withdraw and break LPs");
     it("should withdraw and give ");
