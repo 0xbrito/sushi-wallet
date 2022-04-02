@@ -10,7 +10,7 @@ import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
 
 /**
- * @dev Staking wallet contract. A layer built on top of MasterChef and Router contracts to join Sushi liquidity mining program.
+ * @dev Staking wallet contract. A layer built on top of MasterChef and Router contracts to join Sushiswap's liquidity mining program.
  *
  * This contract's main goal is to reduce the number of steps needed to farm lp tokens, some of the TXs/instructions it handles are:
  *
@@ -142,7 +142,7 @@ contract SushiWallet is Ownable {
         if (sushiBal > 0) sushi.transfer(msg.sender, sushiBal);
     }
 
-    /// @dev Low-level function to interact directly with MasterChef to deposit and farm lp tokens.
+    /// @dev Low-level function which interacts directly with MasterChef to deposit and farm lp tokens.
     function _stake(
         address _lp,
         uint256 _amount,
