@@ -10,14 +10,26 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
 
-import "hardhat/console.sol";
-
+/**
+ * @dev Staking wallet contract. A layer built on top of MasterChef and Router contracts to join Sushi liquidity mining program.
+ *
+ * This contract's main goal is to reduce the number of steps needed to farm lp tokens, some of the TXs/instructions it handles are:
+ *
+ * - providing liquidity by calling {addLiquidity} to the Router contract
+ * - {approve} LP tokens to MasterChef contract
+ * - {deposit} LP tokens into MasterChef and start farming SUSHI
+ * - Additionally, it allow user to {withdraw} tokens and get data sush as {pendingSushi} and {staked} LP tokens
+ *
+ * @notice User must still approve tokens to this contract in order to use your tokens.
+ */
 contract SushiWallet is Ownable {
-    address public factory;
     IUniswapV2Router02 public router;
     IMasterChef public chef;
-
+    address public factory;
     address public immutable weth;
+
+    // pool id => staked lp amount
+    mapping(uint256 => uint256) public staked;
 
     event Stake(uint256 pid, uint256 liquidity);
 
@@ -40,7 +52,12 @@ contract SushiWallet is Ownable {
         weth = _weth;
     }
 
-    /// @notice User must approve tokens to this contract before performing this function.
+    // Return pending sushi to this contract.
+    function pending(uint256 _pid) public view returns (uint256 pending) {
+        pending = chef.pendingSushi(_pid, address(this));
+    }
+
+    /// @notice User must give allowance to this contract before calling this function.
     function deposit(
         address _tokenA,
         address _tokenB,
@@ -86,7 +103,7 @@ contract SushiWallet is Ownable {
             _amountBDesired
         );
 
-        // gas savings
+        // Save gas
         IUniswapV2Router02 _router = router;
 
         IERC20(_tokenA).approve(address(_router), _amountADesired);
@@ -109,7 +126,7 @@ contract SushiWallet is Ownable {
         );
         _stake(lp, liquidity, _pid);
 
-        // transfer remaining tokens to user
+        // Transfer remaining tokens to user
         uint256 remainingA = _amountADesired - amountA;
         uint256 remainingB = _amountBDesired - amountB;
 
@@ -117,17 +134,26 @@ contract SushiWallet is Ownable {
         if (remainingB > 0) IERC20(_tokenB).transfer(msg.sender, remainingB);
     }
 
-    function withdraw() external onlyOwner {}
+    /// @dev Withdraw tokens from MasterChef, pass 0 as {_amount} just to harvest SUSHI.
+    function withdraw(uint256 _pid, uint256 _amount) external onlyOwner {
+        require(
+            staked[_pid] >= _amount,
+            "SushiWallet: Insufficient staked amount"
+        );
+        staked[_pid] -= _amount;
+        chef.withdraw(_pid, _amount);
 
-    function harvest() external {}
+        IERC20 sushi = chef.sushi();
+        uint256 sushiBal = sushi.balanceOf(address(this));
+        if (sushiBal > 0) sushi.transfer(msg.sender, sushiBal);
+    }
 
     function _stake(
         address _lp,
         uint256 _amount,
         uint256 _pid
     ) private {
-        // gas savings
-
+        // Save gas
         IMasterChef _chef = chef;
 
         require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
@@ -136,11 +162,10 @@ contract SushiWallet is Ownable {
             "SushiWallet: Invalid LP token"
         );
 
+        staked[_pid] += _amount;
+
         IERC20(_lp).approve(address(_chef), _amount);
         _chef.deposit(_pid, _amount);
         emit Stake(_pid, _amount);
     }
-
-    // allow wallet to receive ether
-    receive() external payable {}
 }

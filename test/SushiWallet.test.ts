@@ -229,6 +229,12 @@ describe("[SushiWallet]", function () {
       );
       expect(await this.weth.balanceOf(this.wallet.address)).to.be.eq("0");
     });
+    it("retrieve staked amount", async function () {
+      expect(await this.wallet.staked(0)).to.not.be.undefined;
+    });
+    it("retrieve pending sushi", async function () {
+      expect(await this.wallet.pending(0)).to.not.be.undefined;
+    });
     it("reverts if user has no enough balance", async function () {
       await expect(
         walletUser.sendTransaction(
@@ -268,5 +274,4 @@ describe("[SushiWallet]", function () {
     it("should withdraw and give ");
     it("should emergency withdraw");
   });
-  describe("[Harvest]", async function () {});
 });
