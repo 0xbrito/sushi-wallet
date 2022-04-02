@@ -224,18 +224,18 @@ describe("[SushiWallet]", function () {
       );
     });
     it("reverts if user has no enough balance", async function () {
-      const tx = await deposit.call(this, {
-        amountADesired: USER_INITIAL_TOKEN_BALANCE.mul(10),
-      });
-      await expect(walletUser.sendTransaction(tx)).to.be.revertedWith(
-        "SushiWallet: Insufficient tokenA in balance"
-      );
+      await expect(
+        walletUser.sendTransaction(
+          await deposit.call(this, {
+            amountADesired: USER_INITIAL_TOKEN_BALANCE,
+          })
+        )
+      ).to.be.revertedWith("SushiWallet: Insufficient tokenA in balance");
     });
     it("reverts if user hasn't approved enough tokens", async function () {
-      const tx = await deposit.call(this);
-      await expect(walletUser.sendTransaction(tx)).to.be.revertedWith(
-        "SushiWallet: Insufficient allowance"
-      );
+      await expect(
+        walletUser.sendTransaction(await deposit.call(this))
+      ).to.be.revertedWith("SushiWallet: Insufficient allowance");
     });
 
     it("reverts if given a non-existent pool", async function () {
@@ -247,13 +247,15 @@ describe("[SushiWallet]", function () {
         .connect(walletUser)
         .approve(this.wallet.address, USER_LIQUIDITY_WETH);
 
-      const tx = await deposit.call(this, {
-        pid: 10,
-      });
-      await expect(walletUser.sendTransaction(tx)).to.be.revertedWith(
-        "SushiWallet: Invalid pid"
-      );
+      await expect(
+        walletUser.sendTransaction(
+          await deposit.call(this, {
+            pid: 10,
+          })
+        )
+      ).to.be.revertedWith("SushiWallet: Invalid pid");
     });
+    it("refunds any remaining tokens", async function () {});
   });
 
   describe("[WithDraw]", async function () {
