@@ -34,6 +34,23 @@ contract SushiWallet is Ownable {
 
     event Stake(uint256 pid, uint256 liquidity);
 
+    modifier checkBalances(address[] memory tokens, uint256[] memory amounts) {
+        for (uint256 i; i < tokens.length; i++) {
+            //Ensure that user has enough balance
+            require(
+                IERC20(tokens[i]).balanceOf(msg.sender) >= amounts[i],
+                "SushiWallet: Insufficient token balance"
+            );
+            //Ensure that user has approved tokens
+            require(
+                IERC20(tokens[i]).allowance(msg.sender, address(this)) >=
+                    amounts[i],
+                "SushiWallet: Insufficient allowance"
+            );
+        }
+        _;
+    }
+
     constructor(
         address _router,
         address _chef,
@@ -56,122 +73,74 @@ contract SushiWallet is Ownable {
     /// @notice This is the function which fulfill main goal of this contract.
     /// @notice it may not work as expected with tokens with transaction fees.
     /// @dev User must give allowance to this contract before calling this function.
-    /// @param _tokenA      one of the pais's tokens
-    /// @param _tokenB      one of the pair's tokens
-    /// @param _amountADesired      desired amount of {_tokenA} to provide as liquidity
-    /// @param _amountBDesired      desired amount of {_tokenB} to provide as liquidity
+    /// @param _tokens  array of token addresses, if length is 2 it will normally call {addLiquidity} to router, otherwise {addLiquidityWithETH}
+    /// @param _amounts  array of amounts to add liquidity
     /// @param _amountAMin      minimal amount of {_tokenA} to provide as liquidity
     /// @param _amountBMin      minimal amount of {_tokenB} to provide as liquidity
     /// @param _pid     id of the pool to deposit LP in the MasterChef
     function deposit(
-        address _tokenA,
-        address _tokenB,
-        uint256 _amountADesired,
-        uint256 _amountBDesired,
+        address[] calldata _tokens,
+        uint256[] calldata _amounts,
         uint256 _amountAMin,
         uint256 _amountBMin,
         uint256 _pid
-    ) external onlyOwner {
-        //Ensure that user has enough balance
-        require(
-            IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired &&
-                IERC20(_tokenB).balanceOf(msg.sender) >= _amountBDesired,
-            "SushiWallet: Insufficient token balance"
-        );
-        //Ensure that user has approved tokens
-        require(
-            IERC20(_tokenA).allowance(msg.sender, address(this)) >=
-                _amountADesired &&
-                IERC20(_tokenB).allowance(msg.sender, address(this)) >=
-                _amountBDesired,
-            "SushiWallet: Insufficient allowance"
-        );
-
-        (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
-            _tokenA,
-            _tokenB,
-            _amountADesired,
-            _amountBDesired,
-            _amountAMin,
-            _amountBMin
-        );
-
-        IERC20(_tokenA).transferFrom(msg.sender, address(this), amountA);
-        IERC20(_tokenB).transferFrom(msg.sender, address(this), amountB);
-
+    ) external payable onlyOwner checkBalances(_tokens, _amounts) {
         // Save gas
         IUniswapV2Router02 _router = router;
+        if (_tokens.length == 1 && _amounts.length == 1) {
+            (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
+                _tokens[0],
+                _router.WETH(),
+                _amounts[0],
+                msg.value,
+                _amountAMin,
+                _amountBMin
+            );
 
-        IERC20(_tokenA).approve(address(_router), amountA);
-        IERC20(_tokenB).approve(address(_router), amountB);
+            if (msg.value > amountB)
+                payable(msg.sender).call{value: msg.value - amountB}("");
 
-        (, , uint256 liquidity) = _router.addLiquidity(
-            _tokenA,
-            _tokenB,
-            amountA,
-            amountB,
-            0,
-            0,
-            address(this),
-            block.timestamp + 30 minutes
-        );
-        _stake(liquidity, _pid);
-    }
+            IERC20(_tokens[0]).transferFrom(msg.sender, address(this), amountA);
+            IERC20(_tokens[0]).approve(address(_router), amountA);
 
-    /// @notice This is the same as {deposit} but payable so user is able to add liquidity with ETH.
-    /// @notice it may not work as expected with tokens with transaction fees.
-    /// @dev User must give allowance of {_tokenA} to this contract before calling this function.
-    /// @param _tokenA      one of the pais's tokens
-    /// @param _amountADesired      desired amount of {_tokenA} to provide as liquidity
-    /// @param _amountAMin      minimal amount of {_tokenA} to provide as liquidity
-    /// @param _amountBMin      minimal amount of {_tokenB} to provide as liquidity
-    /// @param _pid     id of the pool to deposit LP in the MasterChef
-    function depositWithETH(
-        address _tokenA,
-        uint256 _amountADesired,
-        uint256 _amountAMin,
-        uint256 _amountBMin,
-        uint256 _pid
-    ) external payable onlyOwner {
-        //Ensure that user has enough balance
-        require(
-            IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired,
-            "SushiWallet: Insufficient token balance"
-        );
-        //Ensure that user has approved tokens
-        require(
-            IERC20(_tokenA).allowance(msg.sender, address(this)) >=
-                _amountADesired,
-            "SushiWallet: Insufficient allowance"
-        );
+            (, , uint256 liquidity) = _router.addLiquidityETH{value: amountB}(
+                _tokens[0],
+                amountA,
+                0,
+                0,
+                address(this),
+                block.timestamp + 30 minutes
+            );
+            _stake(liquidity, _pid);
+        } else if (_tokens.length == 2 && _amounts.length == 2) {
+            (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
+                _tokens[0],
+                _tokens[1],
+                _amounts[0],
+                _amounts[1],
+                _amountAMin,
+                _amountBMin
+            );
+            IERC20(_tokens[0]).transferFrom(msg.sender, address(this), amountA);
+            IERC20(_tokens[1]).transferFrom(msg.sender, address(this), amountB);
 
-        // Save gasu
-        IUniswapV2Router02 _router = router;
+            IERC20(_tokens[0]).approve(address(_router), amountA);
+            IERC20(_tokens[1]).approve(address(_router), amountB);
 
-        (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
-            _tokenA,
-            _router.WETH(),
-            _amountADesired,
-            msg.value,
-            _amountAMin,
-            _amountBMin
-        );
-
-        if (msg.value > amountB)
-            payable(msg.sender).call{value: msg.value - amountB}("");
-
-        IERC20(_tokenA).transferFrom(msg.sender, address(this), amountA);
-        IERC20(_tokenA).approve(address(_router), amountA);
-
-        (, , uint256 liquidity) = _router.addLiquidityETH{value: amountB}(
-            _tokenA,
-            amountA,
-            0,
-            0,
-            address(this),
-            block.timestamp + 30 minutes
-        );
-        _stake(liquidity, _pid);
+            (, , uint256 liquidity) = _router.addLiquidity(
+                _tokens[0],
+                _tokens[1],
+                amountA,
+                amountB,
+                0,
+                0,
+                address(this),
+                block.timestamp + 30 minutes
+            );
+            _stake(liquidity, _pid);
+        } else {
+            revert("invalid length of tokens or amounts");
+        }
     }
 
     /// @dev Low-level function which interacts directly with MasterChef to deposit and farm lp tokens.

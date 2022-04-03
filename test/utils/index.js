@@ -18,13 +18,12 @@ module.exports = {
 
     // @ts-ignore:
     const tx = await this.wallet.populateTransaction.deposit(
-      defaultParams.tokenA,
-      defaultParams.tokenB,
-      defaultParams.amountADesired,
-      defaultParams.amountBDesired,
+      [defaultParams.tokenA, defaultParams.tokenB],
+      [defaultParams.amountADesired, defaultParams.amountBDesired],
       defaultParams.amountAMin,
       defaultParams.amountBMin,
-      defaultParams.pid
+      defaultParams.pid,
+      { value: 0 }
     );
     return tx;
   },
@@ -41,9 +40,9 @@ module.exports = {
     };
 
     // @ts-ignore:
-    const tx = await this.wallet.populateTransaction.depositWithETH(
-      defaultParams.tokenA,
-      defaultParams.amountADesired,
+    const tx = await this.wallet.populateTransaction.deposit(
+      [defaultParams.tokenA],
+      [defaultParams.amountADesired],
       defaultParams.amountAMin,
       defaultParams.amountBMin,
       defaultParams.pid,
