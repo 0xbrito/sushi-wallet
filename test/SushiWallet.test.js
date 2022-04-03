@@ -83,26 +83,15 @@ describe("[SushiWallet]", function () {
       // Deploy wallet
       const router = this.router.address;
       const chef = this.chef.address;
-      const weth = this.weth.address;
 
-      const wallet = await deploy(this.SushiWallet, [router, chef, weth]);
+      const wallet = await deploy(this.SushiWallet, [router, chef]);
       await wallet.deployed();
 
       expect(await wallet.router()).to.be.eq(router);
       expect(await wallet.chef()).to.be.eq(chef);
-      expect(await wallet.weth()).to.be.eq(weth);
 
       // Check that deployer became owner
       expect(await wallet.owner()).to.be.eq(user.address);
-    });
-    it("reverts when zero address is given", async function () {
-      await expect(
-        deploy(this.SushiWallet, [
-          this.router.address,
-          this.chef.address,
-          ethers.constants.AddressZero,
-        ])
-      ).to.be.revertedWith("SushiWallet: No zero address");
     });
   });
 
@@ -112,7 +101,6 @@ describe("[SushiWallet]", function () {
       this.wallet = await deploy(this.SushiWallet, [
         this.router.address,
         this.chef.address,
-        this.weth.address,
       ]);
       await this.wallet.deployed();
 
@@ -190,7 +178,6 @@ describe("[SushiWallet]", function () {
       this.wallet = await deploy(this.SushiWallet, [
         this.router.address,
         this.chef.address,
-        this.weth.address,
       ]);
       await this.wallet.deployed();
     });
@@ -259,7 +246,6 @@ describe("[SushiWallet]", function () {
       this.wallet = await deploy(this.SushiWallet, [
         this.router.address,
         this.chef.address,
-        this.weth.address,
       ]);
       await this.wallet.deployed();
 

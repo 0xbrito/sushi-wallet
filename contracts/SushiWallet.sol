@@ -25,16 +25,21 @@ import "hardhat/console.sol";
  * @notice User must still approve tokens to this contract in order to use your tokens.
  */
 contract SushiWallet is Ownable {
-    IUniswapV2Router02 public router;
-    IMasterChef public chef;
-    address public immutable weth;
+    IUniswapV2Router02 public router; // Router contract
+    IMasterChef public chef; // MasterChef contract
 
     // pool id => staked lp amount
     mapping(uint256 => uint256) public staked;
 
     event Stake(uint256 pid, uint256 liquidity);
 
-    modifier checkBalances(address[] memory tokens, uint256[] memory amounts) {
+    // Ensure that balances, allowances and params are valid
+    modifier check(address[] memory tokens, uint256[] memory amounts) {
+        require(
+            (tokens.length == 1 && amounts.length == 1) ||
+                (tokens.length == 2 && amounts.length == 2),
+            "invalid length of tokens or amounts"
+        );
         for (uint256 i; i < tokens.length; i++) {
             //Ensure that user has enough balance
             require(
@@ -51,18 +56,9 @@ contract SushiWallet is Ownable {
         _;
     }
 
-    constructor(
-        address _router,
-        address _chef,
-        address _weth
-    ) public {
-        require(
-            _router != address(0) && _chef != address(0) && _weth != address(0),
-            "SushiWallet: No zero address"
-        );
+    constructor(address _router, address _chef) public {
         router = IUniswapV2Router02(_router);
         chef = IMasterChef(_chef);
-        weth = _weth;
     }
 
     /// @dev Return pending SUSHI of this contract.
@@ -70,64 +66,61 @@ contract SushiWallet is Ownable {
         pendingSushi = chef.pendingSushi(_pid, address(this));
     }
 
+    // modify Router address
+    function setRouter(address _router) external onlyOwner {
+        router = IUniswapV2Router02(_router);
+    }
+
+    // modify MasterChef address
+    function setChef(address _chef) external onlyOwner {
+        chef = IMasterChef(_chef);
+    }
+
     /// @notice This is the function which fulfill main goal of this contract.
-    /// @notice it may not work as expected with tokens with transaction fees.
-    /// @dev User must give allowance to this contract before calling this function.
-    /// @param _tokens  array of token addresses, if length is 2 it will normally call {addLiquidity} to router, otherwise {addLiquidityWithETH}
+    /// @notice It may not work as expected with tokens with transaction fees.
+    ///
+    /// @dev This function has two ways to provide liquidity depending on the length of {tokens} and {amounts}:
+    ///      - if {_tokens.length} and {_amounts.length} both are equal to 2, it will call {addLiquidity} from Router.
+    ///      - if {_tokens.length} and {_amounts.length} both are equal to 1, it will call {addLiquidityETH} from Router.
+    ///      - if none of the above is true the TX will be reverted.
+    ////
+    /// @param _tokens  array of token addresses
     /// @param _amounts  array of amounts to add liquidity
-    /// @param _amountAMin      minimal amount of {_tokenA} to provide as liquidity
-    /// @param _amountBMin      minimal amount of {_tokenB} to provide as liquidity
+    /// @param _amountAMin      minimal amount of {_tokens[0]} to provide as liquidity
+    /// @param _amountBMin      minimal amount of {_tokens[1]} or ETH to provide as liquidity
     /// @param _pid     id of the pool to deposit LP in the MasterChef
     function deposit(
-        address[] calldata _tokens,
-        uint256[] calldata _amounts,
+        address[] memory _tokens,
+        uint256[] memory _amounts,
         uint256 _amountAMin,
         uint256 _amountBMin,
         uint256 _pid
-    ) external payable onlyOwner checkBalances(_tokens, _amounts) {
+    ) public payable onlyOwner check(_tokens, _amounts) {
         // Save gas
         IUniswapV2Router02 _router = router;
-        if (_tokens.length == 1 && _amounts.length == 1) {
-            (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
-                _tokens[0],
-                _router.WETH(),
-                _amounts[0],
-                msg.value,
-                _amountAMin,
-                _amountBMin
-            );
 
-            if (msg.value > amountB)
-                payable(msg.sender).call{value: msg.value - amountB}("");
+        (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
+            _tokens[0],
+            _tokens.length == 1 ? _router.WETH() : _tokens[1],
+            _amounts[0],
+            _tokens.length == 1 ? msg.value : _amounts[1],
+            _amountAMin,
+            _amountBMin
+        );
 
-            IERC20(_tokens[0]).transferFrom(msg.sender, address(this), amountA);
-            IERC20(_tokens[0]).approve(address(_router), amountA);
+        if (msg.value > amountB)
+            payable(msg.sender).call{value: msg.value - amountB}("");
 
-            (, , uint256 liquidity) = _router.addLiquidityETH{value: amountB}(
-                _tokens[0],
-                amountA,
-                0,
-                0,
-                address(this),
-                block.timestamp + 30 minutes
-            );
-            _stake(liquidity, _pid);
-        } else if (_tokens.length == 2 && _amounts.length == 2) {
-            (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
-                _tokens[0],
-                _tokens[1],
-                _amounts[0],
-                _amounts[1],
-                _amountAMin,
-                _amountBMin
-            );
-            IERC20(_tokens[0]).transferFrom(msg.sender, address(this), amountA);
+        IERC20(_tokens[0]).transferFrom(msg.sender, address(this), amountA);
+        IERC20(_tokens[0]).approve(address(_router), amountA);
+
+        // LP amount to stake
+        uint256 liquidity;
+
+        if (_tokens.length == 2) {
             IERC20(_tokens[1]).transferFrom(msg.sender, address(this), amountB);
-
-            IERC20(_tokens[0]).approve(address(_router), amountA);
             IERC20(_tokens[1]).approve(address(_router), amountB);
-
-            (, , uint256 liquidity) = _router.addLiquidity(
+            (, , liquidity) = _router.addLiquidity(
                 _tokens[0],
                 _tokens[1],
                 amountA,
@@ -137,10 +130,21 @@ contract SushiWallet is Ownable {
                 address(this),
                 block.timestamp + 30 minutes
             );
-            _stake(liquidity, _pid);
+
+            // refund any ETH sent in the TX
+            if (msg.value > 0) payable(msg.sender).call{value: msg.value}("");
         } else {
-            revert("invalid length of tokens or amounts");
+            (, , liquidity) = _router.addLiquidityETH{value: amountB}(
+                _tokens[0],
+                amountA,
+                0,
+                0,
+                address(this),
+                block.timestamp + 30 minutes
+            );
         }
+
+        _stake(liquidity, _pid);
     }
 
     /// @dev Low-level function which interacts directly with MasterChef to deposit and farm lp tokens.
@@ -178,6 +182,7 @@ contract SushiWallet is Ownable {
         }
     }
 
+    /// @dev Low-level function to withdraw LPs from MasterChef.
     function _withdraw(uint256 _pid, uint256 _amount)
         private
         returns (address lp)
@@ -193,7 +198,7 @@ contract SushiWallet is Ownable {
         _harvest();
     }
 
-    // Withdraw without caring about rewards. EMERGENCY ONLY.
+    /// @dev Withdraw without caring about rewards. EMERGENCY ONLY.
     function emergencyWithdraw(uint256 _pid) external onlyOwner {
         IMasterChef _chef = chef;
         require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
