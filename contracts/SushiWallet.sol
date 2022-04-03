@@ -149,15 +149,20 @@ contract SushiWallet is Ownable {
     /// @dev Withdraw tokens from MasterChef, pass 0 as {_amount} just to harvest SUSHI.
     function withdraw(uint256 _pid, uint256 _amount) external onlyOwner {
         IUniswapV2Pair lp = IUniswapV2Pair(_withdraw(_pid, _amount));
-        router.removeLiquidity(
-            lp.token0(),
-            lp.token1(),
-            _amount,
-            0,
-            0,
-            msg.sender,
-            block.timestamp + 30 minutes
-        );
+        if (_amount > 0) {
+            // save gas
+            IUniswapV2Router02 _router = router;
+            lp.approve(address(_router), _amount);
+            _router.removeLiquidity(
+                lp.token0(),
+                lp.token1(),
+                _amount,
+                0,
+                0,
+                msg.sender,
+                block.timestamp + 30 minutes
+            );
+        }
     }
 
     function _withdraw(uint256 _pid, uint256 _amount)
