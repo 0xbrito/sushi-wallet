@@ -8,7 +8,7 @@ const {
   USER_LIQUIDITY_SUSHI,
   USER_LIQUIDITY_WETH,
 } = require("./utils/config");
-const { deploy, deposit, balanceOf } = require("./utils");
+const { deploy, deposit, balanceOf, depositWithETH } = require("./utils");
 
 describe("[SushiWallet]", function () {
   let deployer, user;
@@ -131,7 +131,7 @@ describe("[SushiWallet]", function () {
       const sushiBalBefore = await balanceOf(this.sushi, user.address);
       const wethBalBefore = await balanceOf(this.weth, user.address);
 
-      const tx = await deposit.call(this, {});
+      const tx = await deposit.call(this);
       await user.sendTransaction(tx);
 
       // Check that user has less tokens
@@ -178,6 +178,74 @@ describe("[SushiWallet]", function () {
       await expect(
         user.sendTransaction(
           await deposit.call(this, {
+            pid: 10,
+          })
+        )
+      ).to.be.revertedWith("SushiWallet: Invalid pid");
+    });
+  });
+  describe("[Deposit] with ETH", function () {
+    beforeEach(async function () {
+      // Deploy wallet
+      this.wallet = await deploy(this.SushiWallet, [
+        this.router.address,
+        this.chef.address,
+        this.weth.address,
+      ]);
+      await this.wallet.deployed();
+    });
+
+    it("should Add liquidity with ETH and stake LPs in a single transaction", async function () {
+      await this.sushi
+        .connect(user)
+        .approve(this.wallet.address, USER_LIQUIDITY_SUSHI);
+
+      const pendingSushiBefore = await this.wallet.pending(0);
+      const sushiBalBefore = await balanceOf(this.sushi, user.address);
+      const ethBalBefore = await ethers.provider.getBalance(user.address);
+
+      const tx = await depositWithETH.call(this);
+      await user.sendTransaction(tx);
+      // Check that user has less balance
+      expect(await balanceOf(this.sushi, user.address)).to.be.eq(
+        sushiBalBefore.sub(USER_LIQUIDITY_SUSHI)
+      );
+      expect(await ethers.provider.getBalance(user.address)).to.be.lt(
+        ethBalBefore.sub(USER_LIQUIDITY_WETH)
+      );
+
+      // Ensure LPs are staked in the Chef contract
+      const staked = await this.wallet.staked(0);
+      expect(staked).to.be.gt("0");
+      expect(await balanceOf(this.pair, this.chef.address)).to.be.gte(staked);
+      expect(await balanceOf(this.pair, this.wallet.address)).to.be.eq("0");
+
+      // Get pending sushi
+      ethers.provider.send("evm_mine", []);
+      expect(await this.wallet.pending(0)).to.be.gt(pendingSushiBefore);
+    });
+    it("reverts if user has no enough balance", async function () {
+      await expect(
+        user.sendTransaction(
+          await depositWithETH.call(this, {
+            amountADesired: USER_INITIAL_TOKEN_BALANCE,
+          })
+        )
+      ).to.be.revertedWith("Insufficient token balance");
+    });
+    it("reverts if user hasn't approved enough tokens", async function () {
+      await expect(
+        user.sendTransaction(await depositWithETH.call(this))
+      ).to.be.revertedWith("SushiWallet: Insufficient allowance");
+    });
+    it("reverts if given a non-existent pool", async function () {
+      await this.sushi
+        .connect(user)
+        .approve(this.wallet.address, USER_LIQUIDITY_SUSHI);
+
+      await expect(
+        user.sendTransaction(
+          await depositWithETH.call(this, {
             pid: 10,
           })
         )
@@ -274,7 +342,9 @@ describe("[SushiWallet]", function () {
       expect(await balanceOf(this.sushi, user.address)).to.be.eq(
         sushiBalBefore
       );
-      expect(await balanceOf(this.pair, this.wallet.address));
+      expect(await balanceOf(this.pair, this.wallet.address)).to.be.eq(
+        walletLpBalanceBefore
+      );
       expect(await this.wallet.staked(0)).to.be.eq("0");
     });
     it("reverts if given pid is invalid", async function () {

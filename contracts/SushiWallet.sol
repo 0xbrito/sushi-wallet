@@ -62,7 +62,6 @@ contract SushiWallet is Ownable {
     /// @param _amountBDesired      desired amount of {_tokenB} to provide as liquidity
     /// @param _amountAMin      minimal amount of {_tokenA} to provide as liquidity
     /// @param _amountBMin      minimal amount of {_tokenB} to provide as liquidity
-    /// @param _lp      LP token address
     /// @param _pid     id of the pool to deposit LP in the MasterChef
     function deposit(
         address _tokenA,
@@ -71,17 +70,8 @@ contract SushiWallet is Ownable {
         uint256 _amountBDesired,
         uint256 _amountAMin,
         uint256 _amountBMin,
-        address _lp,
         uint256 _pid
-    )
-        external
-        onlyOwner
-        returns (
-            uint256 amountA,
-            uint256 amountB,
-            uint256 liquidity
-        )
-    {
+    ) external onlyOwner {
         //Ensure that user has enough balance
         require(
             IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired &&
@@ -97,7 +87,7 @@ contract SushiWallet is Ownable {
             "SushiWallet: Insufficient allowance"
         );
 
-        (amountA, amountB) = _getOptimalAmounts(
+        (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
             _tokenA,
             _tokenB,
             _amountADesired,
@@ -115,7 +105,7 @@ contract SushiWallet is Ownable {
         IERC20(_tokenA).approve(address(_router), amountA);
         IERC20(_tokenB).approve(address(_router), amountB);
 
-        (, , liquidity) = _router.addLiquidity(
+        (, , uint256 liquidity) = _router.addLiquidity(
             _tokenA,
             _tokenB,
             amountA,
@@ -125,18 +115,72 @@ contract SushiWallet is Ownable {
             address(this),
             block.timestamp + 30 minutes
         );
-        _stake(_lp, liquidity, _pid);
+        _stake(liquidity, _pid);
+    }
+
+    /// @notice This is the same as {deposit} but payable so user is able to add liquidity with ETH.
+    /// @notice it may not work as expected with tokens with transaction fees.
+    /// @dev User must give allowance of {_tokenA} to this contract before calling this function.
+    /// @param _tokenA      one of the pais's tokens
+    /// @param _amountADesired      desired amount of {_tokenA} to provide as liquidity
+    /// @param _amountAMin      minimal amount of {_tokenA} to provide as liquidity
+    /// @param _amountBMin      minimal amount of {_tokenB} to provide as liquidity
+    /// @param _pid     id of the pool to deposit LP in the MasterChef
+    function depositWithETH(
+        address _tokenA,
+        uint256 _amountADesired,
+        uint256 _amountAMin,
+        uint256 _amountBMin,
+        uint256 _pid
+    ) external payable onlyOwner {
+        //Ensure that user has enough balance
+        require(
+            IERC20(_tokenA).balanceOf(msg.sender) >= _amountADesired,
+            "SushiWallet: Insufficient token balance"
+        );
+        //Ensure that user has approved tokens
+        require(
+            IERC20(_tokenA).allowance(msg.sender, address(this)) >=
+                _amountADesired,
+            "SushiWallet: Insufficient allowance"
+        );
+
+        // Save gasu
+        IUniswapV2Router02 _router = router;
+
+        (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
+            _tokenA,
+            _router.WETH(),
+            _amountADesired,
+            msg.value,
+            _amountAMin,
+            _amountBMin
+        );
+
+        if (msg.value > amountB)
+            payable(msg.sender).call{value: msg.value - amountB}("");
+
+        IERC20(_tokenA).transferFrom(msg.sender, address(this), amountA);
+        IERC20(_tokenA).approve(address(_router), amountA);
+
+        (, , uint256 liquidity) = _router.addLiquidityETH{value: amountB}(
+            _tokenA,
+            amountA,
+            0,
+            0,
+            address(this),
+            block.timestamp + 30 minutes
+        );
+        _stake(liquidity, _pid);
     }
 
     /// @dev Low-level function which interacts directly with MasterChef to deposit and farm lp tokens.
-    function _stake(
-        address _lp,
-        uint256 _amount,
-        uint256 _pid
-    ) private {
+    function _stake(uint256 _amount, uint256 _pid) private {
         // Save gas
         IMasterChef _chef = chef;
         require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
+
+        address _lp = address(_chef.poolInfo(_pid).lpToken);
 
         staked[_pid] += _amount;
 
