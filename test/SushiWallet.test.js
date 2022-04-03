@@ -1,13 +1,8 @@
-const pairJson = require("@uniswap/v2-core/build/UniswapV2Pair.json");
-const factoryJson = require("@uniswap/v2-core/build/UniswapV2Factory.json");
-const routerJson = require("@uniswap/v2-periphery/build/UniswapV2Router02.json");
-
-const masterChefJson = require("@sushiswap/core/artifacts/contracts/MasterChef.sol/MasterChef.json");
-const sushiTokenJson = require("@sushiswap/core/artifacts/contracts/SushiToken.sol/SushiToken.json");
-const wethJson = require("@uniswap/v2-periphery/build/WETH9.json");
-
 const { ethers } = require("hardhat");
 const { expect } = require("chai");
+const getFactories = require("./utils/factories");
+
+const deploy = async (factory, params = []) => await factory.deploy(...params);
 
 describe("[SushiWallet]", function () {
   let deployer, walletUser;
@@ -21,64 +16,41 @@ describe("[SushiWallet]", function () {
 
   before(async function () {
     [deployer, walletUser] = await ethers.getSigners();
-
-    this.SushiFactory = new ethers.ContractFactory(
-      factoryJson.abi,
-      factoryJson.bytecode,
-      deployer
-    );
-    this.SushiRouter = new ethers.ContractFactory(
-      routerJson.abi,
-      routerJson.bytecode,
-      deployer
-    );
-    this.SushiPair = new ethers.ContractFactory(
-      pairJson.abi,
-      pairJson.bytecode,
-      deployer
-    );
-    this.MasterChef = new ethers.ContractFactory(
-      masterChefJson.abi,
-      masterChefJson.bytecode,
-      deployer
-    );
-
-    // tokens
-    this.SushiToken = new ethers.ContractFactory(
-      sushiTokenJson.abi,
-      sushiTokenJson.bytecode,
-      deployer
-    );
-    this.Weth9 = new ethers.ContractFactory(
-      wethJson.abi,
-      wethJson.bytecode,
-      deployer
-    );
+    const {
+      SushiFactory,
+      Weth9,
+      SushiToken,
+      SushiRouter,
+      SushiPair,
+      MasterChef,
+    } = await getFactories();
 
     // SushiWallet
     this.SushiWallet = await ethers.getContractFactory(
       "SushiWallet",
       walletUser
     );
-    this.factory = await this.SushiFactory.deploy(ethers.constants.AddressZero);
+
+    this.factory = await deploy(SushiFactory, [ethers.constants.AddressZero]);
 
     // Deploy tokens
-    this.weth = await this.Weth9.deploy();
-    this.sushiToken = await this.SushiToken.deploy();
+    this.weth = await deploy(Weth9);
+    this.sushiToken = await deploy(SushiToken);
 
     // Mint SUSHI
     await this.sushiToken.mint(deployer.address, UNISWAP_INITIAL_TOKEN_RESERVE);
     await this.sushiToken.mint(walletUser.address, USER_INITIAL_TOKEN_BALANCE);
 
-    this.router = await this.SushiRouter.deploy(
+    this.router = await deploy(SushiRouter, [
       this.factory.address,
-      this.weth.address
-    );
+      this.weth.address,
+    ]);
 
     // Create Uniswap pair against WETH and add liquidity
-    await this.sushiToken
-      .connect(deployer)
-      .approve(this.router.address, UNISWAP_INITIAL_TOKEN_RESERVE);
+    await this.sushiToken.approve(
+      this.router.address,
+      UNISWAP_INITIAL_TOKEN_RESERVE
+    );
 
     await this.router.addLiquidityETH(
       this.sushiToken.address,
@@ -90,19 +62,19 @@ describe("[SushiWallet]", function () {
       { value: UNISWAP_INITIAL_WETH_RESERVE }
     );
 
-    this.pair = await this.SushiPair.attach(
+    this.pair = await SushiPair.attach(
       await this.factory.getPair(this.sushiToken.address, this.weth.address)
     );
     expect(await this.pair.balanceOf(deployer.address)).to.be.gt("0");
 
     // Deploy MasterChef
-    this.chef = await this.MasterChef.deploy(
+    this.chef = await deploy(MasterChef, [
       this.sushiToken.address,
       deployer.address,
       ethers.utils.parseEther("10"),
       0,
-      1000
-    );
+      1000,
+    ]);
     await this.chef.deployed();
     await this.sushiToken.transferOwnership(this.chef.address);
     expect(await this.sushiToken.owner()).to.be.eq(this.chef.address);
@@ -117,7 +89,7 @@ describe("[SushiWallet]", function () {
       const chef = this.chef.address;
       const weth = this.weth.address;
 
-      const wallet = await this.SushiWallet.deploy(router, chef, weth);
+      const wallet = await deploy(this.SushiWallet, [router, chef, weth]);
       await wallet.deployed();
 
       expect(await wallet.router()).to.be.eq(router);
@@ -129,11 +101,11 @@ describe("[SushiWallet]", function () {
     });
     it("reverts when zero address is given", async function () {
       await expect(
-        this.SushiWallet.deploy(
+        deploy(this.SushiWallet, [
           this.router.address,
           this.chef.address,
-          ethers.constants.AddressZero
-        )
+          ethers.constants.AddressZero,
+        ])
       ).to.be.revertedWith("SushiWallet: No zero address");
     });
   });
@@ -170,11 +142,11 @@ describe("[SushiWallet]", function () {
   describe("[Deposit]", async function () {
     beforeEach(async function () {
       // Deploy wallet
-      this.wallet = await this.SushiWallet.deploy(
+      this.wallet = await deploy(this.SushiWallet, [
         this.router.address,
         this.chef.address,
-        this.weth.address
-      );
+        this.weth.address,
+      ]);
       await this.wallet.deployed();
 
       await this.weth
@@ -253,11 +225,11 @@ describe("[SushiWallet]", function () {
   describe("[WithDraw]", async function () {
     before(async function () {
       // Deploy wallet
-      this.wallet = await this.SushiWallet.deploy(
+      this.wallet = await deploy(this.SushiWallet, [
         this.router.address,
         this.chef.address,
-        this.weth.address
-      );
+        this.weth.address,
+      ]);
       await this.wallet.deployed();
 
       // wrap ETH
@@ -314,6 +286,7 @@ describe("[SushiWallet]", function () {
     it("harvest when 0 amount is given and there's pending sushi", async function () {
       await ethers.provider.send("evm_mine", []);
       const pendingBefore = await this.wallet.pending(0);
+      const stakedBefore = await this.wallet.staked(0);
 
       const userSushiBalBefore = await this.sushiToken.balanceOf(
         walletUser.address
@@ -324,6 +297,7 @@ describe("[SushiWallet]", function () {
       expect(await this.sushiToken.balanceOf(walletUser.address)).to.be.gt(
         userSushiBalBefore
       );
+      expect(await this.wallet.staked(0)).to.be.eq(stakedBefore);
     });
     it("should emergency withdraw");
     it("reverts if given pid is invalid", async function () {
