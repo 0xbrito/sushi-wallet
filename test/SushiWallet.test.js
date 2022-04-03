@@ -16,6 +16,7 @@ describe("[SushiWallet]", function () {
   const UNISWAP_INITIAL_WETH_RESERVE = ethers.utils.parseEther("100");
 
   const USER_LIQUIDITY_WETH = ethers.utils.parseEther("1");
+  const USER_LIQUIDITY_SUSHI = ethers.utils.parseEther("100");
   const USER_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther("1000");
 
   before(async function () {
@@ -136,7 +137,36 @@ describe("[SushiWallet]", function () {
       ).to.be.revertedWith("SushiWallet: No zero address");
     });
   });
+  // @ts-ignore:
+  async function deposit(overrides) {
+    const defaultParams = {
+      // @ts-ignore:
+      tokenA: this.sushiToken.address,
+      // @ts-ignore:
+      tokenB: this.weth.address,
+      amountADesired: USER_LIQUIDITY_SUSHI,
+      amountBDesired: USER_LIQUIDITY_WETH,
+      amountAMin: USER_LIQUIDITY_SUSHI.mul(95).div(100),
+      amountBMin: USER_LIQUIDITY_WETH.mul(95).div(100),
+      // @ts-ignore
+      lp: this.pair.address,
+      pid: 0,
+      ...overrides,
+    };
 
+    // @ts-ignore:
+    const tx = await this.wallet.populateTransaction.deposit(
+      defaultParams.tokenA,
+      defaultParams.tokenB,
+      defaultParams.amountADesired,
+      defaultParams.amountBDesired,
+      defaultParams.amountAMin,
+      defaultParams.amountBMin,
+      defaultParams.lp,
+      defaultParams.pid
+    );
+    return tx;
+  }
   describe("[Deposit]", async function () {
     beforeEach(async function () {
       // Deploy wallet
@@ -152,50 +182,15 @@ describe("[SushiWallet]", function () {
         .deposit({ value: USER_LIQUIDITY_WETH });
     });
 
-    // @ts-ignore:
-    async function deposit(overrides) {
-      const defaultParams = {
-        // @ts-ignore:
-        tokenA: this.sushiToken.address,
-        // @ts-ignore:
-        tokenB: this.weth.address,
-        amountADesired: USER_INITIAL_TOKEN_BALANCE.div(10),
-        amountBDesired: USER_LIQUIDITY_WETH,
-        amountAMin: USER_INITIAL_TOKEN_BALANCE.div(10).mul(95).div(100),
-        amountBMin: USER_LIQUIDITY_WETH.mul(95).div(100),
-        // @ts-ignore
-        lp: this.pair.address,
-        pid: 0,
-        ...overrides,
-      };
-
-      // @ts-ignore:
-      const tx = await this.wallet.populateTransaction.deposit(
-        defaultParams.tokenA,
-        defaultParams.tokenB,
-        defaultParams.amountADesired,
-        defaultParams.amountBDesired,
-        defaultParams.amountAMin,
-        defaultParams.amountBMin,
-        defaultParams.lp,
-        defaultParams.pid
-      );
-      return tx;
-    }
-
     it("should Add liquidity and stake LPs in a single transaction", async function () {
-      const sushiToDeposit = USER_INITIAL_TOKEN_BALANCE.div(10);
       await this.weth
         .connect(walletUser)
         .approve(this.wallet.address, USER_LIQUIDITY_WETH);
       await this.sushiToken
         .connect(walletUser)
-        .approve(this.wallet.address, sushiToDeposit);
+        .approve(this.wallet.address, USER_LIQUIDITY_SUSHI);
 
-      const pendingSushiBefore = await this.chef.pendingSushi(
-        0,
-        this.wallet.address
-      );
+      const pendingSushiBefore = await this.wallet.pending(0);
       const sushiBalBefore = await this.sushiToken.balanceOf(
         walletUser.address
       );
@@ -204,23 +199,23 @@ describe("[SushiWallet]", function () {
       const tx = await deposit.call(this, {});
       await walletUser.sendTransaction(tx);
 
+      // Check that user has less tokens
       expect(await this.sushiToken.balanceOf(walletUser.address)).to.be.eq(
-        sushiBalBefore.sub(sushiToDeposit)
+        sushiBalBefore.sub(USER_LIQUIDITY_SUSHI)
       );
       expect(await this.weth.balanceOf(walletUser.address)).to.be.eq(
         wethBalBefore.sub(USER_LIQUIDITY_WETH)
       );
 
+      // Ensure LPs are staked in the Chef contract
+      const staked = await this.wallet.staked(0);
+      expect(staked).to.be.gt("0");
+      expect(await this.pair.balanceOf(this.chef.address)).to.be.gte(staked);
+      expect(await this.pair.balanceOf(this.wallet.address)).to.be.eq("0");
+
+      // Get pending sushi
       ethers.provider.send("evm_mine", []);
-      expect(await this.chef.pendingSushi(0, this.wallet.address)).to.be.gt(
-        pendingSushiBefore
-      );
-    });
-    it("retrieve staked amount", async function () {
-      expect(await this.wallet.staked(0)).to.not.be.undefined;
-    });
-    it("retrieve pending sushi", async function () {
-      expect(await this.wallet.pending(0)).to.not.be.undefined;
+      expect(await this.wallet.pending(0)).to.be.gt(pendingSushiBefore);
     });
     it("reverts if user has no enough balance", async function () {
       await expect(
@@ -236,11 +231,10 @@ describe("[SushiWallet]", function () {
         walletUser.sendTransaction(await deposit.call(this))
       ).to.be.revertedWith("SushiWallet: Insufficient allowance");
     });
-
     it("reverts if given a non-existent pool", async function () {
       await this.sushiToken
         .connect(walletUser)
-        .approve(this.wallet.address, USER_INITIAL_TOKEN_BALANCE);
+        .approve(this.wallet.address, USER_LIQUIDITY_SUSHI);
 
       await this.weth
         .connect(walletUser)
@@ -257,8 +251,90 @@ describe("[SushiWallet]", function () {
   });
 
   describe("[WithDraw]", async function () {
-    it("should withdraw and break LPs");
-    it("should withdraw and give ");
+    before(async function () {
+      // Deploy wallet
+      this.wallet = await this.SushiWallet.deploy(
+        this.router.address,
+        this.chef.address,
+        this.weth.address
+      );
+      await this.wallet.deployed();
+
+      // wrap ETH
+      await this.weth
+        .connect(walletUser)
+        .deposit({ value: USER_LIQUIDITY_WETH });
+
+      //approve tokens
+      await this.weth
+        .connect(walletUser)
+        .approve(this.wallet.address, USER_LIQUIDITY_WETH);
+      await this.sushiToken
+        .connect(walletUser)
+        .approve(this.wallet.address, USER_LIQUIDITY_SUSHI);
+
+      await walletUser.sendTransaction(await deposit.call(this));
+      await ethers.provider.send("evm_mine", []);
+    });
+    it("should withdraw and break LPs", async function () {
+      await ethers.provider.send("evm_mine", []);
+      const stakedAmountBefore = await this.wallet.staked(0); //get staked LP tokens
+      const amountTowithDraw = stakedAmountBefore.div(2); //Withdraw half staked LP tokens
+
+      const pendingBefore = await this.wallet.pending(0);
+
+      const userSushiBalBefore = await this.sushiToken.balanceOf(
+        walletUser.address
+      );
+      const userWethBalBefore = await this.weth.balanceOf(walletUser.address);
+
+      const chefLpBalBefore = await this.pair.balanceOf(this.chef.address);
+
+      await this.wallet.withdraw(0, amountTowithDraw);
+
+      expect(await this.wallet.staked(0)).to.be.eq(
+        stakedAmountBefore.sub(amountTowithDraw)
+      );
+      expect(await this.pair.balanceOf(this.chef.address)).to.be.eq(
+        chefLpBalBefore.sub(amountTowithDraw)
+      );
+
+      // wallet must break LPs
+      expect(await this.pair.balanceOf(this.wallet.address)).to.be.eq("0");
+
+      // ensure user gets tokens
+      expect(await this.wallet.pending(0)).to.be.lt(pendingBefore);
+      expect(await this.sushiToken.balanceOf(walletUser.address)).to.be.gte(
+        userSushiBalBefore.add(pendingBefore)
+      );
+      expect(await this.weth.balanceOf(walletUser.address)).to.be.gt(
+        userWethBalBefore
+      );
+    });
+    it("harvest when 0 amount is given and there's pending sushi", async function () {
+      await ethers.provider.send("evm_mine", []);
+      const pendingBefore = await this.wallet.pending(0);
+
+      const userSushiBalBefore = await this.sushiToken.balanceOf(
+        walletUser.address
+      );
+      await this.wallet.withdraw(0, 0);
+      // ensure user get sushi
+      expect(await this.wallet.pending(0)).to.be.lt(pendingBefore);
+      expect(await this.sushiToken.balanceOf(walletUser.address)).to.be.gt(
+        userSushiBalBefore
+      );
+    });
     it("should emergency withdraw");
+    it("reverts if given pid is invalid", async function () {
+      await expect(this.wallet.withdraw(10, 0)).to.be.revertedWith(
+        "SushiWallet: Invalid pid"
+      );
+    });
+    it("reverts if amount to withdraw is invalid", async function name() {
+      await expect(
+        this.wallet.withdraw(0, (await this.wallet.staked(0)).add(1))
+      ).to.be.revertedWith("withdraw: not good");
+    });
   });
 });

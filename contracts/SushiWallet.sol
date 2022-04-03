@@ -4,8 +4,9 @@ pragma experimental ABIEncoderV2;
 
 import "./Ownable.sol";
 
-import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
 import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
@@ -114,9 +115,6 @@ contract SushiWallet is Ownable {
         IERC20(_tokenA).approve(address(_router), amountA);
         IERC20(_tokenB).approve(address(_router), amountB);
 
-
-        console.log("amountA: ", amountA / 1e18);
-        console.log("amountB: ", amountB / 1e18);
         (, , liquidity) = _router.addLiquidity(
             _tokenA,
             _tokenB,
@@ -130,20 +128,6 @@ contract SushiWallet is Ownable {
         _stake(_lp, liquidity, _pid);
     }
 
-    /// @dev Withdraw tokens from MasterChef, pass 0 as {_amount} just to harvest SUSHI.
-    function withdraw(uint256 _pid, uint256 _amount) external onlyOwner {
-        require(
-            staked[_pid] >= _amount,
-            "SushiWallet: Insufficient staked amount"
-        );
-        staked[_pid] -= _amount;
-        chef.withdraw(_pid, _amount);
-
-        IERC20 sushi = chef.sushi();
-        uint256 sushiBal = sushi.balanceOf(address(this));
-        if (sushiBal > 0) sushi.transfer(msg.sender, sushiBal);
-    }
-
     /// @dev Low-level function which interacts directly with MasterChef to deposit and farm lp tokens.
     function _stake(
         address _lp,
@@ -152,18 +136,51 @@ contract SushiWallet is Ownable {
     ) private {
         // Save gas
         IMasterChef _chef = chef;
-
         require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
-        require(
-            address(_chef.poolInfo(_pid).lpToken) == _lp,
-            "SushiWallet: Invalid LP token"
-        );
 
         staked[_pid] += _amount;
 
         IERC20(_lp).approve(address(_chef), _amount);
         _chef.deposit(_pid, _amount);
+        _harvest();
         emit Stake(_pid, _amount);
+    }
+
+    /// @dev Withdraw tokens from MasterChef, pass 0 as {_amount} just to harvest SUSHI.
+    function withdraw(uint256 _pid, uint256 _amount) external onlyOwner {
+        IUniswapV2Pair lp = IUniswapV2Pair(_withdraw(_pid, _amount));
+        router.removeLiquidity(
+            lp.token0(),
+            lp.token1(),
+            _amount,
+            0,
+            0,
+            msg.sender,
+            block.timestamp + 30 minutes
+        );
+    }
+
+    function _withdraw(uint256 _pid, uint256 _amount)
+        private
+        returns (address lp)
+    {
+        // Save gas
+        IMasterChef _chef = chef;
+        require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
+
+        lp = address(_chef.poolInfo(_pid).lpToken);
+
+        staked[_pid] -= _amount;
+        _chef.withdraw(_pid, _amount);
+        _harvest();
+    }
+
+    /// @notice When calling {deposit} or {withdraw} to MasterChef, it will send any pending SUSHI to the caller.
+    /// @dev This is a low-level function that will send any SUSHI obtained from interacting with MasterChef back to {msg.sender}.
+    function _harvest() private {
+        IERC20 sushi = chef.sushi();
+        uint256 sushiBal = sushi.balanceOf(address(this));
+        if (sushiBal > 0) sushi.transfer(msg.sender, sushiBal);
     }
 
     /// @dev piece of code extracted from UniswapV2Router02.sol contract to calculate optimal amounts before accessing user funds.
