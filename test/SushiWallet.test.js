@@ -1,14 +1,14 @@
 const { ethers } = require("hardhat");
 const { expect } = require("chai");
-const getFactories = require("./utils/factories");
+const getFactories = require("../utils/factories");
 const {
   UNISWAP_INITIAL_TOKEN_RESERVE,
   USER_INITIAL_TOKEN_BALANCE,
   UNISWAP_INITIAL_WETH_RESERVE,
   USER_LIQUIDITY_SUSHI,
   USER_LIQUIDITY_WETH,
-} = require("./utils/config");
-const { deploy, deposit, balanceOf, depositWithETH } = require("./utils");
+} = require("../utils/config");
+const { deploy, deposit, balanceOf, depositWithETH } = require("../utils");
 
 describe("[SushiWallet]", function () {
   let deployer, user;

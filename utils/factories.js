@@ -9,7 +9,7 @@ const wethJson = require("@uniswap/v2-periphery/build/WETH9.json");
 const { ethers } = require("hardhat");
 
 module.exports = async () => {
-  [deployer, walletUser] = await ethers.getSigners();
+  [deployer] = await ethers.getSigners();
 
   return {
     SushiFactory: new ethers.ContractFactory(

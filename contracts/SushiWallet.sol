@@ -176,6 +176,8 @@ contract SushiWallet is Ownable {
     }
 
     /// @dev Withdraw tokens from MasterChef, pass 0 as {_amount} just to harvest SUSHI.
+    /// @notice If {_amount} is provided, it will be returned in the form of two ERC20 tokens only,
+    ///      meaning that caller will receive wETH instead of ETH in an ERC20/wETH pair. 
     function withdraw(uint256 _pid, uint256 _amount) external onlyOwner {
         IUniswapV2Pair lp = IUniswapV2Pair(_withdraw(_pid, _amount));
         if (_amount > 0) {
