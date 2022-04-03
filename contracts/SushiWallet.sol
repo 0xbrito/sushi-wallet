@@ -17,7 +17,7 @@ import "hardhat/console.sol";
  *
  * This contract's main goal is to reduce the number of steps needed to farm lp tokens, some of the TXs/instructions it handles are:
  *
- * - providing liquidity by calling {addLiquidity} to the Router contract
+ * - providing liquidity by calling {addLiquidity} or {addLiquidityETH} to the Router contract
  * - {approve} LP tokens to MasterChef contract
  * - {deposit} LP tokens into MasterChef and start farming SUSHI
  * - Additionally, it allow user to {withdraw} tokens and get data sush as {pendingSushi} and {staked} LP tokens
@@ -131,7 +131,7 @@ contract SushiWallet is Ownable {
                 block.timestamp + 30 minutes
             );
 
-            // refund any ETH sent in the TX
+            // refund any ETH sent in the transaction
             if (msg.value > 0) payable(msg.sender).call{value: msg.value}("");
         } else {
             (, , liquidity) = _router.addLiquidityETH{value: amountB}(
