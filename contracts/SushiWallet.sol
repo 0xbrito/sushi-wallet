@@ -180,6 +180,18 @@ contract SushiWallet is Ownable {
         _harvest();
     }
 
+    // Withdraw without caring about rewards. EMERGENCY ONLY.
+    function emergencyWithdraw(uint256 _pid) external onlyOwner {
+        IMasterChef _chef = chef;
+        require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
+        uint256 amount = _chef.userInfo(_pid, address(this)).amount;
+        staked[_pid] -= amount;
+        _chef.emergencyWithdraw(_pid);
+
+        IERC20 lp = _chef.poolInfo(_pid).lpToken;
+        lp.transfer(msg.sender, amount);
+    }
+
     /// @notice When calling {deposit} or {withdraw} to MasterChef, it will send any pending SUSHI to the caller.
     /// @dev This is a low-level function that will send any SUSHI obtained from interacting with MasterChef back to {msg.sender}.
     function _harvest() private {

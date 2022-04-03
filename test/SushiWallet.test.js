@@ -256,7 +256,27 @@ describe("[SushiWallet]", function () {
       );
       expect(await this.wallet.staked(0)).to.be.eq(stakedBefore);
     });
-    it("should emergency withdraw");
+    it("should emergency withdraw", async function () {
+      ethers.provider.send("evm_mine", []);
+      const lpBalanceBefore = await balanceOf(this.pair, user.address);
+      const sushiBalBefore = await balanceOf(this.sushi, user.address);
+      const stakedBefore = await this.wallet.staked(0);
+      const walletLpBalanceBefore = await balanceOf(
+        this.pair,
+        this.wallet.address
+      );
+
+      await this.wallet.emergencyWithdraw(0);
+
+      expect(await balanceOf(this.pair, user.address)).to.be.eq(
+        lpBalanceBefore.add(stakedBefore)
+      );
+      expect(await balanceOf(this.sushi, user.address)).to.be.eq(
+        sushiBalBefore
+      );
+      expect(await balanceOf(this.pair, this.wallet.address));
+      expect(await this.wallet.staked(0)).to.be.eq("0");
+    });
     it("reverts if given pid is invalid", async function () {
       await expect(this.wallet.withdraw(10, 0)).to.be.revertedWith(
         "SushiWallet: Invalid pid"

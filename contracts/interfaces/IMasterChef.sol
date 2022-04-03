@@ -15,7 +15,12 @@ interface IMasterChef {
         uint256 accSushiPerShare; // Accumulated SUSHI per share, times 1e12. See below.
     }
 
-    function poolInfo(uint256 pid) external view returns (PoolInfo memory);
+    function poolInfo(uint256 _pid) external view returns (PoolInfo memory);
+
+    function userInfo(uint256 _pid, address _user)
+        external
+        view
+        returns (UserInfo memory);
 
     function poolLength() external view returns (uint256);
 
@@ -31,4 +36,6 @@ interface IMasterChef {
     function deposit(uint256 _pid, uint256 _amount) external;
 
     function withdraw(uint256 _pid, uint256 _amount) external;
+
+    function emergencyWithdraw(uint256 _pid) external;
 }
