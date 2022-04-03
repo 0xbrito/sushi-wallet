@@ -11,14 +11,13 @@ import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
 import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
-import "hardhat/console.sol";
 
 /**
  * @dev Staking wallet contract. A layer built on top of MasterChef and Router contracts to join Sushiswap's liquidity mining program.
  *
  * This contract's main goal is to reduce the number of steps needed to farm lp tokens, some of the TXs/instructions it handles are:
  *
- * - providing liquidity by calling {addLiquidity} or {addLiquidityETH} to the Router contract
+ * - providing liquidity by calling {addLiquidity} to the Router contract
  * - {approve} LP tokens to MasterChef contract
  * - {deposit} LP tokens into MasterChef and start farming SUSHI
  * - Additionally, it allow user to {withdraw} tokens and get data sush as {pendingSushi} and {staked} LP tokens
@@ -87,9 +86,10 @@ contract SushiWallet is Ownable {
     /// @notice This is the function which fulfill main goal of this contract.
     /// @notice It may not work as expected with tokens with transaction fees.
     ///
-    /// @dev This function has two ways to provide liquidity depending on the length of {tokens} and {amounts}:
-    ///      - if {_tokens.length} and {_amounts.length} both are equal to 2, it will .
-    ///      - if {_tokens.length} and {_amounts.length} both are equal to 1, it will call {addLiquidityETH} from Router.
+    /// @dev This function has two ways to provide liquidity depending on the length of {_tokens} and {_amounts}:
+    ///      - if {_tokens.length} and {_amounts.length} both are equal to 2, it will simple call {addLiquidity} as usual.
+    ///      - if {_tokens.length} and {_amounts.length} both are equal to 1, it will first wrap any ETH amount sent with
+    ///            the TX and call {addLiquidity} with ERC20 wETH as {tokenB}.
     ///      - if none of the above is true the TX will be reverted.
     ////
     /// @param _tokens  array of token addresses
@@ -177,7 +177,7 @@ contract SushiWallet is Ownable {
 
     /// @dev Withdraw tokens from MasterChef, pass 0 as {_amount} just to harvest SUSHI.
     /// @notice If {_amount} is provided, it will be returned in the form of two ERC20 tokens only,
-    ///      meaning that caller will receive wETH instead of ETH in an ERC20/wETH pair. 
+    ///      meaning that caller will receive wETH instead of ETH in an ERC20/wETH pair.
     function withdraw(uint256 _pid, uint256 _amount) external onlyOwner {
         IUniswapV2Pair lp = IUniswapV2Pair(_withdraw(_pid, _amount));
         if (_amount > 0) {

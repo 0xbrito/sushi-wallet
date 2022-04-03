@@ -4,7 +4,10 @@
     "test": "npx hardhat test",
     "compile": "npx hardhat compile",
     "clean": "npx hardhat clean",
-    "deploy": "npx hardhat run scripts/deploy.js --network ropsten"
+    "deploy": "npx hardhat run scripts/deploy.js --network ropsten",
+    "mint": "npx hardhat run scripts/mint.js --network ropsten",
+    "add-liquidity": "npx hardhat run scripts/addLiquidity.js --network ropsten",
+    "add-pool": "npx hardhat run scripts/addPool.js --network ropsten"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
