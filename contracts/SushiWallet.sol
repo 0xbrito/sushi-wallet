@@ -7,6 +7,7 @@ import "./Ownable.sol";
 import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
 import "./interfaces/IERC20.sol";
 import "./interfaces/IMasterChef.sol";
@@ -28,12 +29,14 @@ contract SushiWallet is Ownable {
     IUniswapV2Router02 public router; // Router contract
     IMasterChef public chef; // MasterChef contract
 
+    IWETH public WETH; // WETH address, used to wrap transactions with ETH
+
     // pool id => staked lp amount
     mapping(uint256 => uint256) public staked;
 
     event Stake(uint256 pid, uint256 liquidity);
 
-    // Ensure that balances, allowances and params are valid
+    // Make sure the balances, allocations, and lengths of array parameters are valid
     modifier check(address[] memory tokens, uint256[] memory amounts) {
         require(
             (tokens.length == 1 && amounts.length == 1) ||
@@ -56,12 +59,17 @@ contract SushiWallet is Ownable {
         _;
     }
 
-    constructor(address _router, address _chef) public {
+    constructor(
+        address _router,
+        address _chef,
+        address _weth
+    ) public {
         router = IUniswapV2Router02(_router);
         chef = IMasterChef(_chef);
+        WETH = IWETH(_weth);
     }
 
-    /// @dev Return pending SUSHI of this contract.
+    /// return pending SUSHI of this contract.
     function pending(uint256 _pid) public view returns (uint256 pendingSushi) {
         pendingSushi = chef.pendingSushi(_pid, address(this));
     }
@@ -80,7 +88,7 @@ contract SushiWallet is Ownable {
     /// @notice It may not work as expected with tokens with transaction fees.
     ///
     /// @dev This function has two ways to provide liquidity depending on the length of {tokens} and {amounts}:
-    ///      - if {_tokens.length} and {_amounts.length} both are equal to 2, it will call {addLiquidity} from Router.
+    ///      - if {_tokens.length} and {_amounts.length} both are equal to 2, it will .
     ///      - if {_tokens.length} and {_amounts.length} both are equal to 1, it will call {addLiquidityETH} from Router.
     ///      - if none of the above is true the TX will be reverted.
     ////
@@ -98,52 +106,56 @@ contract SushiWallet is Ownable {
     ) public payable onlyOwner check(_tokens, _amounts) {
         // Save gas
         IUniswapV2Router02 _router = router;
+        IWETH _weth = WETH;
 
-        (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
-            _tokens[0],
-            _tokens.length == 1 ? _router.WETH() : _tokens[1],
-            _amounts[0],
-            _tokens.length == 1 ? msg.value : _amounts[1],
-            _amountAMin,
-            _amountBMin
-        );
-
-        if (msg.value > amountB)
-            payable(msg.sender).call{value: msg.value - amountB}("");
-
-        IERC20(_tokens[0]).transferFrom(msg.sender, address(this), amountA);
-        IERC20(_tokens[0]).approve(address(_router), amountA);
-
-        // LP amount to stake
-        uint256 liquidity;
+        address _tokenB;
+        uint256 _amountBDesired;
 
         if (_tokens.length == 2) {
-            IERC20(_tokens[1]).transferFrom(msg.sender, address(this), amountB);
-            IERC20(_tokens[1]).approve(address(_router), amountB);
-            (, , liquidity) = _router.addLiquidity(
-                _tokens[0],
-                _tokens[1],
-                amountA,
-                amountB,
-                0,
-                0,
-                address(this),
-                block.timestamp + 30 minutes
-            );
+            _tokenB = _tokens[1];
+            _amountBDesired = _amounts[1];
 
             // refund any ETH sent in the transaction
             if (msg.value > 0) payable(msg.sender).call{value: msg.value}("");
         } else {
-            (, , liquidity) = _router.addLiquidityETH{value: amountB}(
-                _tokens[0],
-                amountA,
-                0,
-                0,
-                address(this),
-                block.timestamp + 30 minutes
-            );
+            _tokenB = address(_weth);
+            _amountBDesired = msg.value;
         }
 
+        (uint256 amountA, uint256 amountB) = _getOptimalAmounts(
+            _tokens[0],
+            _tokenB,
+            _amounts[0],
+            _amountBDesired,
+            _amountAMin,
+            _amountBMin
+        );
+
+        IERC20(_tokens[0]).transferFrom(msg.sender, address(this), amountA);
+
+        if (_tokens.length == 1) {
+            //Wrap Ether
+            _weth.deposit{value: amountB}();
+            // refund remaining ETH
+            if (msg.value > amountB)
+                payable(msg.sender).call{value: msg.value - amountB}("");
+        } else {
+            IERC20(_tokenB).transferFrom(msg.sender, address(this), amountB);
+        }
+
+        IERC20(_tokens[0]).approve(address(_router), amountA);
+        IERC20(_tokenB).approve(address(_router), amountB);
+
+        (, , uint256 liquidity) = _router.addLiquidity(
+            _tokens[0],
+            _tokenB,
+            amountA,
+            amountB,
+            0,
+            0,
+            address(this),
+            block.timestamp + 30 minutes
+        );
         _stake(liquidity, _pid);
     }
 
