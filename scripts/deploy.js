@@ -25,8 +25,8 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contracts to deploy
-  //const { SushiFactory, SushiRouter, MasterChef, SushiToken, Weth9 } =
-  //await getFactories();
+  const { SushiFactory, SushiRouter, MasterChef, SushiToken, Weth9 } =
+  await getFactories();
 
   // SushiWallet Factory
   const SushiWallet = await ethers.getContractFactory("SushiWallet", user);

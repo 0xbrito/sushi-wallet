@@ -3,7 +3,7 @@ const {
   USER_INITIAL_TOKEN_BALANCE,
   UNISWAP_INITIAL_TOKEN_RESERVE,
 } = require("../utils/config");
-const getContracts = require("./contracts");
+const getContracts = require("./deployedContracts");
 
 async function main() {
   const [deployer, user] = await ethers.getSigners();

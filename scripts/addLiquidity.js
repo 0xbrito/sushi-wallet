@@ -3,7 +3,7 @@ const {
   UNISWAP_INITIAL_WETH_RESERVE_ROPSTEN,
   UNISWAP_INITIAL_TOKEN_RESERVE,
 } = require("../utils/config");
-const getContracts = require("./contracts");
+const getContracts = require("./deployedContracts");
 
 async function main() {
   const [deployer] = await ethers.getSigners();

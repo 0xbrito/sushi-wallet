@@ -8,7 +8,7 @@ const {
   USER_LIQUIDITY_SUSHI,
   USER_LIQUIDITY_WETH,
 } = require("../utils/config");
-const { deploy, deposit, balanceOf, depositWithETH } = require("../utils");
+const { deploy, deposit, balanceOf } = require("../utils");
 
 describe("[SushiWallet]", function () {
   let deployer, user;

@@ -5,6 +5,8 @@ const chefAbi = require("@sushiswap/core/abi/MasterChef.json");
 const routerAbi =
   require("@uniswap/v2-periphery/build/UniswapV2Router02.json").abi;
 const pairAbi = require("@uniswap/v2-core/build/UniswapV2Pair.json").abi;
+const walletAbi =
+  require("../artifacts/contracts/SushiWallet.sol/SushiWallet.json").abi;
 
 async function getContracts() {
   const [deployer, user] = await ethers.getSigners();
@@ -26,11 +28,17 @@ async function getContracts() {
     chefAbi
   );
 
+  const wallet = new ethers.Contract(
+    process.env.WALLET_ADDRESS_ROPSTEN,
+    walletAbi
+  );
+
   return {
     sushi,
     router,
     pair,
     chef,
+    wallet,
   };
 }
 
