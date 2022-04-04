@@ -22,7 +22,7 @@ async function main() {
       tokenToDeposit.mul(95).div(100),
       USER_LIQUIDITY_WETH_ROPSTEN.mul(95).div(100),
       0,
-      { value: USER_LIQUIDITY_WETH_ROPSTEN }
+      { value: USER_LIQUIDITY_WETH_ROPSTEN, gasLimit: 1e6 }
     );
 
   console.log("sending TX: ", tx.hash);

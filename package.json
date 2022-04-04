@@ -10,7 +10,7 @@
     "add-pool": "npx hardhat run scripts/addPool.js --network ropsten",
     "deposit": "npx hardhat run scripts/deposit.js --network ropsten",
     "withdraw": "npx hardhat run scripts/withdraw.js --network ropsten",
-    "emergencyWithdraw": "npx hardhat run script/emergencyWithdraw.js --network ropsten"
+    "emergencyWithdraw": "npx hardhat run scripts/emergencyWithdraw.js --network ropsten"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
