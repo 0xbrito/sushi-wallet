@@ -11,12 +11,16 @@ async function main() {
   console.log("router: ", await wallet.connect(user).router());
   console.log("masterChef: ", await wallet.connect(user).chef());
 
+  const pid = 0;
+
   const pending = ethers.utils.formatEther(
-    await wallet.connect(user).pending(0)
+    await wallet.connect(user).pending(pid)
   );
-  const staked = ethers.utils.formatEther(await wallet.connect(user).staked(0));
-  console.log("pending tokens: ", pending);
-  console.log("staked LPs: ", staked);
+  const staked = ethers.utils.formatEther(
+    await wallet.connect(user).staked(pid)
+  );
+  console.log(`pending tokens in pool ${pid}: `, pending);
+  console.log(`staked LPs in pool ${pid}: `, staked);
 }
 
 main().catch((error) => {
