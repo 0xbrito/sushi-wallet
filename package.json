@@ -1,5 +1,5 @@
 {
-  "name": "hardhat-project",
+  "name": "sushi-wallet",
   "scripts": {
     "test": "npx hardhat test",
     "compile": "npx hardhat compile",
