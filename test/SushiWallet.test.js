@@ -110,7 +110,7 @@ describe("[SushiWallet]", function () {
       await this.weth.connect(user).deposit({ value: USER_LIQUIDITY_WETH });
     });
 
-    it("should Add liquidity and stake LPs in a single transaction", async function () {
+    it("should Add liquidity and deposit LPs in a single transaction", async function () {
       await this.weth
         .connect(user)
         .approve(this.wallet.address, USER_LIQUIDITY_WETH);
@@ -133,17 +133,17 @@ describe("[SushiWallet]", function () {
         wethBalBefore.sub(USER_LIQUIDITY_WETH)
       );
 
-      // Ensure LPs are staked in the Chef contract
-      const staked = await this.wallet.staked(0);
-      expect(staked).to.be.gt("0");
-      expect(await balanceOf(this.pair, this.chef.address)).to.be.gte(staked);
+      // Ensure LPs are deposited in the Chef contract
+      const deposited = await this.wallet.deposited(0);
+      expect(deposited).to.be.gt("0");
+      expect(await balanceOf(this.pair, this.chef.address)).to.be.gte(deposited);
       expect(await balanceOf(this.pair, this.wallet.address)).to.be.eq("0");
 
       // Get pending sushi
       ethers.provider.send("evm_mine", []);
       expect(await this.wallet.pending(0)).to.be.gt(pendingSushiBefore);
     });
-    it("should Add liquidity with ETH and stake LPs in a single transaction", async function () {
+    it("should Add liquidity with ETH and deposit LPs in a single transaction", async function () {
       await this.sushi
         .connect(user)
         .approve(this.wallet.address, USER_LIQUIDITY_SUSHI);
@@ -166,10 +166,10 @@ describe("[SushiWallet]", function () {
         ethBalBefore.sub(USER_LIQUIDITY_WETH)
       );
 
-      // Ensure LPs are staked in the Chef contract
-      const staked = await this.wallet.staked(0);
-      expect(staked).to.be.gt("0");
-      expect(await balanceOf(this.pair, this.chef.address)).to.be.gte(staked);
+      // Ensure LPs are deposited in the Chef contract
+      const deposited = await this.wallet.deposited(0);
+      expect(deposited).to.be.gt("0");
+      expect(await balanceOf(this.pair, this.chef.address)).to.be.gte(deposited);
       expect(await balanceOf(this.pair, this.wallet.address)).to.be.eq("0");
 
       // Get pending sushi
@@ -253,8 +253,8 @@ describe("[SushiWallet]", function () {
     });
     it("should withdraw and break LPs", async function () {
       await ethers.provider.send("evm_mine", []);
-      const stakedAmountBefore = await this.wallet.staked(0); //get staked LP tokens
-      const amountTowithDraw = stakedAmountBefore.div(2); //Withdraw half staked LP tokens
+      const depositedAmountBefore = await this.wallet.deposited(0); //get deposited LP tokens
+      const amountTowithDraw = depositedAmountBefore.div(2); //Withdraw half deposited LP tokens
 
       const pendingBefore = await this.wallet.pending(0);
 
@@ -265,8 +265,8 @@ describe("[SushiWallet]", function () {
 
       await this.wallet.withdraw(0, amountTowithDraw);
 
-      expect(await this.wallet.staked(0)).to.be.eq(
-        stakedAmountBefore.sub(amountTowithDraw)
+      expect(await this.wallet.deposited(0)).to.be.eq(
+        depositedAmountBefore.sub(amountTowithDraw)
       );
       expect(await balanceOf(this.pair, this.chef.address)).to.be.eq(
         chefLpBalBefore.sub(amountTowithDraw)
@@ -287,7 +287,7 @@ describe("[SushiWallet]", function () {
     it("harvest when 0 amount is given and there's pending sushi", async function () {
       await ethers.provider.send("evm_mine", []);
       const pendingBefore = await this.wallet.pending(0);
-      const stakedBefore = await this.wallet.staked(0);
+      const depositedBefore = await this.wallet.deposited(0);
 
       const userSushiBalBefore = await balanceOf(this.sushi, user.address);
       await this.wallet.withdraw(0, 0);
@@ -296,13 +296,13 @@ describe("[SushiWallet]", function () {
       expect(await balanceOf(this.sushi, user.address)).to.be.gt(
         userSushiBalBefore
       );
-      expect(await this.wallet.staked(0)).to.be.eq(stakedBefore);
+      expect(await this.wallet.deposited(0)).to.be.eq(depositedBefore);
     });
     it("should emergency withdraw", async function () {
       ethers.provider.send("evm_mine", []);
       const lpBalanceBefore = await balanceOf(this.pair, user.address);
       const sushiBalBefore = await balanceOf(this.sushi, user.address);
-      const stakedBefore = await this.wallet.staked(0);
+      const depositedBefore = await this.wallet.deposited(0);
       const walletLpBalanceBefore = await balanceOf(
         this.pair,
         this.wallet.address
@@ -311,7 +311,7 @@ describe("[SushiWallet]", function () {
       await this.wallet.emergencyWithdraw(0);
 
       expect(await balanceOf(this.pair, user.address)).to.be.eq(
-        lpBalanceBefore.add(stakedBefore)
+        lpBalanceBefore.add(depositedBefore)
       );
       expect(await balanceOf(this.sushi, user.address)).to.be.eq(
         sushiBalBefore
@@ -319,7 +319,7 @@ describe("[SushiWallet]", function () {
       expect(await balanceOf(this.pair, this.wallet.address)).to.be.eq(
         walletLpBalanceBefore
       );
-      expect(await this.wallet.staked(0)).to.be.eq("0");
+      expect(await this.wallet.deposited(0)).to.be.eq("0");
     });
     it("reverts if given pid is invalid", async function () {
       await expect(this.wallet.withdraw(10, 0)).to.be.revertedWith(
@@ -328,7 +328,7 @@ describe("[SushiWallet]", function () {
     });
     it("reverts if amount to withdraw is invalid", async function name() {
       await expect(
-        this.wallet.withdraw(0, (await this.wallet.staked(0)).add(1))
+        this.wallet.withdraw(0, (await this.wallet.deposited(0)).add(1))
       ).to.be.revertedWith("withdraw: not good");
     });
   });
