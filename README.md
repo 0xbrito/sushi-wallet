@@ -54,15 +54,15 @@ To run tests, run the following command
 
 SushiWallet and the contracts used to test it were all deployed to ropsten under the following addresses:
 
-| Contract          | Address                                                                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| SushiWallet       | [0xC285Be77ce5A8D3fAC3d7dFfFD15969Cdb3F5781](https://ropsten.etherscan.io/address/0xC285Be77ce5A8D3fAC3d7dFfFD15969Cdb3F5781){:target="\_blank"} |
-| MasterChef        | [0x1F4f639b8621bA484779e0349133ae38D9B3FE75](https://ropsten.etherscan.io/address/0x1F4f639b8621bA484779e0349133ae38D9B3FE75){:target="\_blank"} |
-| SushiToken        | [0xFfCe7F971356dA939A8DD6D00a733fE210a3Eae4](https://ropsten.etherscan.io/token/0xFfCe7F971356dA939A8DD6D00a733fE210a3Eae4){:target="\_blank"}   |
-| UniswapV2Router02 | [0x435603100F3553B190ea25A6009F10E858B880F5](https://ropsten.etherscan.io/address/0x435603100F3553B190ea25A6009F10E858B880F5){:target="\_blank"} |
-| UniswapV2Factory  | [0xF272561Abe4d741AbFcC05295cD14A705DdF3904](https://ropsten.etherscan.io/address/0xF272561Abe4d741AbFcC05295cD14A705DdF3904){:target="\_blank"} |
-| UniswapV2Pair     | [0x19c9265bCd56e0de5bC1c96CaC5f29F47d77dC37](https://ropsten.etherscan.io/address/0x19c9265bcd56e0de5bc1c96cac5f29f47d77dc37){:target="\_blank"} |
-| WETH9             | [0x099c724fFDD4DF267d28C80794b57537dDc974ff](https://ropsten.etherscan.io/token/0x099c724fFDD4DF267d28C80794b57537dDc974ff){:target="\_blank"}   |
+| Contract          | Address                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| SushiWallet       | [0xC285Be77ce5A8D3fAC3d7dFfFD15969Cdb3F5781](https://ropsten.etherscan.io/address/0xC285Be77ce5A8D3fAC3d7dFfFD15969Cdb3F5781) |
+| MasterChef        | [0x1F4f639b8621bA484779e0349133ae38D9B3FE75](https://ropsten.etherscan.io/address/0x1F4f639b8621bA484779e0349133ae38D9B3FE75) |
+| SushiToken        | [0xFfCe7F971356dA939A8DD6D00a733fE210a3Eae4](https://ropsten.etherscan.io/token/0xFfCe7F971356dA939A8DD6D00a733fE210a3Eae4)   |
+| UniswapV2Router02 | [0x435603100F3553B190ea25A6009F10E858B880F5](https://ropsten.etherscan.io/address/0x435603100F3553B190ea25A6009F10E858B880F5) |
+| UniswapV2Factory  | [0xF272561Abe4d741AbFcC05295cD14A705DdF3904](https://ropsten.etherscan.io/address/0xF272561Abe4d741AbFcC05295cD14A705DdF3904) |
+| UniswapV2Pair     | [0x19c9265bCd56e0de5bC1c96CaC5f29F47d77dC37](https://ropsten.etherscan.io/address/0x19c9265bcd56e0de5bc1c96cac5f29f47d77dc37) |
+| WETH9             | [0x099c724fFDD4DF267d28C80794b57537dDc974ff](https://ropsten.etherscan.io/token/0x099c724fFDD4DF267d28C80794b57537dDc974ff)   |
 
 ## License
 
