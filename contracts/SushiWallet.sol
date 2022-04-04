@@ -20,7 +20,7 @@ import "./interfaces/IMasterChef.sol";
  * - providing liquidity by calling {addLiquidity} to the Router contract
  * - {approve} LP tokens to MasterChef contract
  * - {deposit} LP tokens into MasterChef and start farming SUSHI
- * - Additionally, it allow user to {withdraw} tokens and get data sush as {pending} SUSHI and {deposited} LP tokens
+ * - Additionally, it allow user to {withdraw} tokens and get data sush as {pending} SUSHI and {staked} LP tokens
  *
  * @notice User must still approve tokens to this contract in order to use your tokens.
  */
@@ -70,9 +70,9 @@ contract SushiWallet is Ownable {
         pendingSushi = chef.pendingSushi(_pid, address(this));
     }
 
-    // return deposited LP amount.
-    function deposited(uint256 _pid) external view returns (uint256 deposited) {
-        deposited = chef.userInfo(_pid, address(this)).amount;
+    // return staked LP amount.
+    function staked(uint256 _pid) external view returns (uint256 staked) {
+        staked = chef.userInfo(_pid, address(this)).amount;
     }
 
     // modify Router address
@@ -158,11 +158,11 @@ contract SushiWallet is Ownable {
             address(this),
             block.timestamp + 30 minutes
         );
-        _deposit(liquidity, _pid);
+        _stake(liquidity, _pid);
     }
 
     /// @dev Low-level function which interacts directly with MasterChef to deposit and farm lp tokens.
-    function _deposit(uint256 _amount, uint256 _pid) private {
+    function _stake(uint256 _amount, uint256 _pid) private {
         // Save gas
         IMasterChef _chef = chef;
         require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
