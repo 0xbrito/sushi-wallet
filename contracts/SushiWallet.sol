@@ -20,7 +20,7 @@ import "./interfaces/IMasterChef.sol";
  * - providing liquidity by calling {addLiquidity} to the Router contract
  * - {approve} LP tokens to MasterChef contract
  * - {deposit} LP tokens into MasterChef and start farming SUSHI
- * - Additionally, it allow user to {withdraw} tokens and get data sush as {pendingSushi} and {staked} LP tokens
+ * - Additionally, it allow user to {withdraw} tokens and get data sush as {pending} SUSHI and {staked} LP tokens
  *
  * @notice User must still approve tokens to this contract in order to use your tokens.
  */
@@ -29,9 +29,6 @@ contract SushiWallet is Ownable {
     IMasterChef public chef; // MasterChef contract
 
     IWETH public WETH; // WETH address, used to wrap transactions with ETH
-
-    // pool id => staked lp amount
-    mapping(uint256 => uint256) public staked;
 
     event Stake(uint256 pid, uint256 liquidity);
 
@@ -68,9 +65,14 @@ contract SushiWallet is Ownable {
         WETH = IWETH(_weth);
     }
 
-    /// return pending SUSHI of this contract.
+    // return pending SUSHI of this contract.
     function pending(uint256 _pid) public view returns (uint256 pendingSushi) {
         pendingSushi = chef.pendingSushi(_pid, address(this));
+    }
+
+    // return staked LP amount.
+    function staked(uint256 _pid) external view returns (uint256 staked) {
+        staked = chef.userInfo(_pid, address(this)).amount;
     }
 
     // modify Router address
@@ -167,8 +169,6 @@ contract SushiWallet is Ownable {
 
         address _lp = address(_chef.poolInfo(_pid).lpToken);
 
-        staked[_pid] += _amount;
-
         IERC20(_lp).approve(address(_chef), _amount);
         _chef.deposit(_pid, _amount);
         _harvest();
@@ -206,8 +206,6 @@ contract SushiWallet is Ownable {
         require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
 
         lp = address(_chef.poolInfo(_pid).lpToken);
-
-        staked[_pid] -= _amount;
         _chef.withdraw(_pid, _amount);
         _harvest();
     }
@@ -217,7 +215,6 @@ contract SushiWallet is Ownable {
         IMasterChef _chef = chef;
         require(_pid <= _chef.poolLength(), "SushiWallet: Invalid pid");
         uint256 amount = _chef.userInfo(_pid, address(this)).amount;
-        staked[_pid] -= amount;
         _chef.emergencyWithdraw(_pid);
 
         IERC20 lp = _chef.poolInfo(_pid).lpToken;

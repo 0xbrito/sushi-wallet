@@ -6,9 +6,7 @@ async function main() {
 
   const { wallet } = await getContracts();
 
-  const tx = await wallet
-    .connect(user)
-    .withdraw(0, ethers.utils.parseEther("5"));
+  const tx = await wallet.connect(user).emergencyWithdraw(0);
   console.log("Sending tx: ", tx.hash);
   const rc = await tx.wait();
   console.log("confirmed at block: ", rc.blockNumber);
